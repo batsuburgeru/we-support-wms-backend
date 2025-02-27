@@ -1,5 +1,4 @@
 const express = require("express");
-const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
@@ -53,7 +52,7 @@ app.post("/login", async (req, res) => {
 
 // Register METHOD
 app.post(
-  "/users",
+  "/register",
   authenticateToken,
   authorizePermission("create_users"),
   async (req, res) => {
@@ -71,18 +70,16 @@ app.post(
         return res.status(400).json({ error: "Invalid role provided" });
       }
 
-      const userId = uuidv4();
       const hashedPassword = await bcrypt.hash(password, 10);
 
       await db("users").insert({
-        id: userId,
         name,
         email,
         password_hash: hashedPassword,
         role,
       });
 
-      res.status(201).json({ message: "User created successfully", userId });
+      res.status(201).json({ message: "User created successfully" });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
