@@ -1,0 +1,32 @@
+{
+  "name": "we-support-wms-backend",
+  "version": "latest",
+  "description": "Warehouse Management System",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index",
+    "serveer": "nodemon index"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/batsuburgeru/we-support-wms-backend.git"
+  },
+  "author": "WeSupport",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/batsuburgeru/we-support-wms-backend/issues"
+  },
+  "homepage": "https://github.com/batsuburgeru/we-support-wms-backend#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "mysql2": "^3.12.0",
+    "nodemon": "^3.1.9",
+    "uuid": "^11.1.0"
+  }
+}
