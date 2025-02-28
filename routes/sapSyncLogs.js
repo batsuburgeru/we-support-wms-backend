@@ -10,16 +10,42 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-// Read Categories
+// Read SAP Sync Logs
 app.get(
-  "/view_categories",
+  "/view-sap-sync-logs",
   authenticateToken,
-  authorizePermission("view_categories"),
+  authorizePermission("view_sap_sync_logs"),
   async (req, res) => {
     try {
-      const data = await db("categories").select("*");
+      const data = await db("sap_sync_logs").select("*");
       res.status(201).json({
-        message: `Categories Viewed successfully`,
+        message: `SAP Sync Logs Viewed successfully`,
+        data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Create SAP Sync Logs
+app.post(
+  "/create-sap-sync-log",
+  authenticateToken,
+  authorizePermission("create_sap_sync_logs"),
+  async (req, res) => {
+    try {
+      const { id, pr_id, transaction_id, status } = req.body;
+
+      const data = await db("sap_sync_logs").insert({
+        id,
+        pr_id,
+        transaction_id,
+        status,
+      });
+
+      res.status(201).json({
+        message: `SAP Sync Log Created successfully`,
         data: data,
       });
     } catch (error) {
@@ -28,48 +54,21 @@ app.get(
   }
 );
 
-// Create Categories
-app.post(
-  "/create_category",
-  authenticateToken,
-  authorizePermission("create_categories"),
-  async (req, res) => {
-    try {
-      const { id, name, description } = req.body;
-
-      const data = await db("categories").insert({
-        id,
-        name,
-        description,
-      });
-
-      res.status(201).json({
-        message: `Category Created successfully`,
-        data,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Update Categories
+// Update SAP Sync Logs
 app.put(
-  "/update_category/:id",
+  "/update-sap-sync-log/:id",
   authenticateToken,
-  authorizePermission("update_categories"),
+  authorizePermission("update_sap_sync_logs"),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description } = req.body;
+      const { status } = req.body;
 
-      const data = await db("categories")
-        .where({ id })
-        .update({ name, description });
+      const data = await db("sap_sync_logs").where({ id }).update({ status });
 
       res.status(201).json({
-        message: `Category Updated successfully`,
-        data,
+        message: `SAP Sync Log Updated successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -77,20 +76,20 @@ app.put(
   }
 );
 
-// Delete Categories
+// Delete SAP Sync Logs
 app.delete(
-  "/delete_category/:id",
+  "/delete-sap-sync-log/:id",
   authenticateToken,
-  authorizePermission("delete_categories"),
+  authorizePermission("delete_sap_sync_logs"),
   async (req, res) => {
     try {
       const { id } = req.params;
 
-      const data = await db("categories").where({ id }).del();
+      const data = await db("sap_sync_logs").where({ id }).del();
 
       res.status(201).json({
-        message: `Category Deleted successfully`,
-        data,
+        message: `SAP Sync Log Deleted successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

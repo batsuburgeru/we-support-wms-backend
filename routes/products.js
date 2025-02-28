@@ -1,10 +1,4 @@
 const express = require("express");
-const bcrypt = require("bcrypt");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
-
-dotenv.config();
-const SECRET_KEY = process.env.SECRET_KEY;
 
 const app = express.Router();
 app.use(express.json());

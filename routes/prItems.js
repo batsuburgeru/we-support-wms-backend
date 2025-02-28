@@ -10,17 +10,17 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-// Read Delivery Notes
+// Read PR Items
 app.get(
-  "/view-delivery-notes",
+  "/view-pr-items",
   authenticateToken,
-  authorizePermission("view_delivery_notes"),
+  authorizePermission("view_pr_items"),
   async (req, res) => {
     try {
-      const data = await db("delivery_notes").select("*");
+      const data = await db("pr_items").select("*");
       res.status(201).json({
-        message: `Delivery Notes Viewed successfully`,
-        data,
+        message: `PR Items Viewed successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -28,25 +28,27 @@ app.get(
   }
 );
 
-// Create Delivery Notes
+// Create PR Items
 app.post(
-  "/create-delivery-note",
+  "/create-pr-item",
   authenticateToken,
-  authorizePermission("create_delivery_notes"),
+  authorizePermission("create_pr_items"),
   async (req, res) => {
     try {
-      const { id, pr_id, verified_by, verified_at, status } = req.body;
+      const { id, pr_id, product_id, quantity, unit_rice, total_price } =
+        req.body;
 
-      const data = await db("delivery_notes").insert({
+      const data = await db("pr_items").insert({
         id,
         pr_id,
-        verified_by,
-        verified_at,
-        status,
+        product_id,
+        quantity,
+        unit_rice,
+        total_price,
       });
 
       res.status(201).json({
-        message: `Delivery Note Created successfully`,
+        message: `PR Item Created successfully`,
         data: data,
       });
     } catch (error) {
@@ -55,25 +57,26 @@ app.post(
   }
 );
 
-// Update Delivery Notes
+// Update PR Items
 app.put(
-  "/update-delivery-note/:id",
+  "/update-pr-item/:id",
   authenticateToken,
-  authorizePermission("update_delivery_notes"),
+  authorizePermission("update_pr_items"),
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { pr_id, verified_by, verified_at, status } = req.body;
+      const { pr_id, product_id, quantity, unit_rice, total_price } = req.body;
 
-      data = await db("delivery_notes").where({ id }).update({
+      const data = await db("pr_items").where({ id }).update({
         pr_id,
-        verified_by,
-        verified_at,
-        status,
+        product_id,
+        quantity,
+        unit_rice,
+        total_price,
       });
 
       res.status(201).json({
-        message: `Delivery Note ${id} Updated successfully`,
+        message: `PR Item Updated successfully`,
         data: data,
       });
     } catch (error) {
@@ -82,19 +85,20 @@ app.put(
   }
 );
 
-// Delete Delivery Notes
+// Delete PR Items
 app.delete(
-  "/delete-delivery-note/:id",
+  "/delete-pr-item/:id",
   authenticateToken,
-  authorizePermission("delete_delivery_notes"),
+  authorizePermission("delete_pr_items"),
   async (req, res) => {
     try {
       const { id } = req.params;
 
-      await db("delivery_notes").where({ id }).del();
+      const data = await db("pr_items").where({ id }).del();
 
       res.status(201).json({
-        message: `Delivery Note ${id} Deleted successfully`,
+        message: `PR Item Deleted successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -102,4 +106,4 @@ app.delete(
   }
 );
 
-modeule.exports = app;
+module.exports = app;
