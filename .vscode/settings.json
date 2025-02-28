@@ -1,0 +1,19 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "xprotocol",
+                "enableSsl": "Disabled"
+            },
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 33060,
+            "driver": "MySQL",
+            "name": "wms_db",
+            "database": "WeSupport_db",
+            "username": "root",
+            "connectionTimeout": 30,
+            "password": "trining1017"
+        }
+    ]
+}
