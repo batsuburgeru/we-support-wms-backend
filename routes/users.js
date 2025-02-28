@@ -16,7 +16,7 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-// LOGIN ROUTE
+// Login Users
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -50,7 +50,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Register METHOD
+// Create User
 app.post(
   "/register",
   authenticateToken,
@@ -86,15 +86,36 @@ app.post(
   }
 );
 
-// GET USERS ROUTE
+// Get Users
 app.get(
   "/users",
   authenticateToken,
-  authorizePermission("view_users", "edit_users"),
+  authorizePermission("view_users"),
   async (req, res) => {
     try {
       const users = await db("users").select("*");
       res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update User
+app.put(
+  "/update-user/:id",
+  authenticateToken,
+  authorizePermission("update_users"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, email, role } = req.body;
+
+      await db("users")
+        .where("id", id)
+        .update({ name, email, role });
+
+      res.json({ message: "User updated successfully" });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
