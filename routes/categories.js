@@ -10,9 +10,30 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+
+// Search Category
+app.get(
+  "/search-category",
+  authenticateToken,
+  authorizePermission("view_categories"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const categories = await db("categories")
+        .select("*")
+        .where("name", "like", `%${search}%`);
+
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Categories
 app.get(
-  "/view_categories",
+  "/view-categories",
   authenticateToken,
   authorizePermission("view_categories"),
   async (req, res) => {
@@ -30,7 +51,7 @@ app.get(
 
 // Create Categories
 app.post(
-  "/create_category",
+  "/create-category",
   authenticateToken,
   authorizePermission("create_categories"),
   async (req, res) => {
@@ -55,7 +76,7 @@ app.post(
 
 // Update Categories
 app.put(
-  "/update_category/:id",
+  "/update-category/:id",
   authenticateToken,
   authorizePermission("update_categories"),
   async (req, res) => {
@@ -79,7 +100,7 @@ app.put(
 
 // Delete Categories
 app.delete(
-  "/delete_category/:id",
+  "/delete-category/:id",
   authenticateToken,
   authorizePermission("delete_categories"),
   async (req, res) => {

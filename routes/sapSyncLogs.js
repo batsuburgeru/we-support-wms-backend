@@ -10,6 +10,29 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Search SAP Sync Logs
+app.get(
+  "/search-sap-sync-log",
+  authenticateToken,
+  authorizePermission("view_sap_sync_logs"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("sap_sync_logs")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `SAP Sync Logs searched successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read SAP Sync Logs
 app.get(
   "/view-sap-sync-logs",

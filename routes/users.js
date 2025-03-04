@@ -18,36 +18,55 @@ const {
 
 // Login Users
 app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+    try {
+        const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await db("users")
-      .select("id", "name", "email", "password_hash", "role")
-      .where("email", email)
-      .first();
+        // Check if user exists
+        const user = await db("users")
+            .select("id", "name", "email", "password_hash", "role")
+            .where("email", email)
+            .first();
 
-    if (!user) {
-      return res.status(401).json({ error: "Invalid email or password" });
+        if (!user) {
+            return res.status(401).json({ error: "Invalid email or password" });
+        }
+
+        // Compare passwords
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            return res.status(401).json({ error: "Invalid email or password" });
+        }
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: user.id, name: user.name, email: user.email, role: user.role },
+            SECRET_KEY,
+            { expiresIn: "1h" }
+        );
+
+        // Set token as an HTTP-only cookie
+        res.cookie("token", token, {
+            httpOnly: true, // Prevents JavaScript access (More Secure)
+            secure: process.env.NODE_ENV === "production", // Enables Secure flag in production (HTTPS required)
+            sameSite: "Strict", // Prevents CSRF attacks
+            maxAge: 60 * 60 * 1000 // Expires in 1 hour
+        });
+
+        res.json({ message: "Login successful", data: token });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
+});
 
-    // Compare passwords
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    if (!passwordMatch) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
+// Logout Users
+app.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict"
+  });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role },
-      SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    res.json({ message: "Login successful", token });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  res.json({ message: "Logged out successfully" });
 });
 
 // Create User
@@ -86,9 +105,30 @@ app.post(
   }
 );
 
-// Get Users
+
+// Search Users
 app.get(
-  "/users",
+  "/search-users",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const users = await db("users")
+        .select("*")
+        .where("name", "like", `%${search}%`);
+
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read Users
+app.get(
+  "/view-users",
   authenticateToken,
   authorizePermission("view_users"),
   async (req, res) => {

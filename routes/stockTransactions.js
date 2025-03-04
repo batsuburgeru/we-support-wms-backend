@@ -10,6 +10,29 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Search Stock Transactions
+app.get(
+  "/search-stock-transactions",
+  authenticateToken,
+  authorizePermission("view_stock_transactions"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("stock_transactions")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Stock Transactions searched successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Stock Transactions
 app.get(
   "/view-stock-transactions",
@@ -39,7 +62,6 @@ app.post(
         id,
         product_id,
         transaction_type,
-        transaction_date,
         quantity,
         performed_by,
       } = req.body;
@@ -48,7 +70,6 @@ app.post(
         id,
         product_id,
         transaction_type,
-        transaction_date,
         quantity,
         performed_by,
       });
@@ -74,7 +95,6 @@ app.put(
       const {
         product_id,
         transaction_type,
-        transaction_date,
         quantity,
         performed_by,
       } = req.body;
@@ -82,7 +102,6 @@ app.put(
       const data = await db("stock_transactions").where({ id }).update({
         product_id,
         transaction_type,
-        transaction_date,
         quantity,
         performed_by,
       });

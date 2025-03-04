@@ -10,6 +10,29 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Search Products
+app.get(
+  "/search-products",
+  authenticateToken,
+  authorizePermission("view_products"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("products")
+        .select("*")
+        .where("name", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Products searched successfully`,
+        data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Products
 app.get(
   "/view-products",

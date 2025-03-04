@@ -10,6 +10,29 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Search PR Items
+app.get(
+  "/search-pr-items",
+  authenticateToken,
+  authorizePermission("view_pr_items"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("pr_items")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `PR Items searched successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read PR Items
 app.get(
   "/view-pr-items",
@@ -35,7 +58,7 @@ app.post(
   authorizePermission("create_pr_items"),
   async (req, res) => {
     try {
-      const { id, pr_id, product_id, quantity, unit_rice, total_price } =
+      const { id, pr_id, product_id, quantity, unit_price, total_price } =
         req.body;
 
       const data = await db("pr_items").insert({
@@ -43,7 +66,7 @@ app.post(
         pr_id,
         product_id,
         quantity,
-        unit_rice,
+        unit_price,
         total_price,
       });
 
@@ -65,13 +88,13 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { pr_id, product_id, quantity, unit_rice, total_price } = req.body;
+      const { pr_id, product_id, quantity, unit_price, total_price } = req.body;
 
       const data = await db("pr_items").where({ id }).update({
         pr_id,
         product_id,
         quantity,
-        unit_rice,
+        unit_price,
         total_price,
       });
 

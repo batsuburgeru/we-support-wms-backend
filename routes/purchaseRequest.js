@@ -28,6 +28,29 @@ app.get(
   }
 );
 
+// Search Purchase Requests
+app.get(
+  "/search-purchase-request",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("purchase_requests")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Purchase Requests searched successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Create Purchase Requests
 app.post(
   "/create-purchase-request",
@@ -39,20 +62,16 @@ app.post(
         id,
         created_by,
         status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
+        approved_by,
+        sap_sync_status
       } = req.body;
 
       const data = await db("purchase_requests").insert({
         id,
         created_by,
         status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
+        approved_by,
+        sap_sync_status
       });
 
       res.status(201).json({
@@ -76,19 +95,15 @@ app.put(
       const {
         created_by,
         status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
+        approved_by,
+        sap_sync_status
       } = req.body;
 
       const data = await db("purchase_requests").where({ id }).update({
         created_by,
         status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
+        approved_by,
+        sap_sync_status
       });
 
       res.status(201).json({

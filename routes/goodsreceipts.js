@@ -1,10 +1,4 @@
 const express = require("express");
-const bcrypt = require("bcrypt");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
-
-dotenv.config();
-const SECRET_KEY = process.env.SECRET_KEY;
 
 const app = express.Router();
 app.use(express.json());
@@ -15,6 +9,29 @@ const {
   authenticateToken,
   authorizePermission,
 } = require("../middleware/authentication.js");
+
+// Search Goods Receipts
+app.get(
+  "/search-goods-receipt",
+  authenticateToken,
+  authorizePermission("view_goods_receipts"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("goods_receipts")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Goods Receipts searched successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
 
 // Read Goods Receipts
 app.get(
@@ -38,14 +55,13 @@ app.get(
 app.post(
   "/create-goods-receipt",
   authenticateToken,
-  authorizePermission("create_goods_receipt"),
+  authorizePermission("create_goods_receipts"),
   async (req, res) => {
     try {
       const {
         id,
         pr_id,
         received_by,
-        received_at,
         status
       } = req.body;
 
@@ -53,7 +69,6 @@ app.post(
         id,
         pr_id,
         received_by,
-        received_at,
         status
       });
 
@@ -78,7 +93,6 @@ app.put(
         id,
         pr_id,
         received_by,
-        received_at,
         status
       } = req.body;
 
@@ -88,7 +102,6 @@ app.put(
             id,
             pr_id,
             received_by,
-            received_at,
             status
         });
 

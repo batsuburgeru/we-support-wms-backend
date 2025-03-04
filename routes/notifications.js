@@ -1,10 +1,4 @@
 const express = require("express");
-const bcrypt = require("bcrypt");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
-
-dotenv.config();
-const SECRET_KEY = process.env.SECRET_KEY;
 
 const app = express.Router();
 app.use(express.json());
@@ -15,6 +9,26 @@ const {
   authenticateToken,
   authorizePermission,
 } = require("../middleware/authentication.js");
+
+// Search Notifications
+app.get(
+  "/search-notification",
+  authenticateToken,
+  authorizePermission("view_notifications"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const notifications = await db("notifications")
+        .select("*")
+        .where("message", "like", `%${search}%`);
+
+      res.json(notifications);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
 
 // Read Notifications
 app.get(
@@ -41,14 +55,13 @@ app.post(
   authorizePermission("create_notification"),
   async (req, res) => {
     try {
-      const { id, user_id, message, status, created_at } = req.body;
+      const { id, user_id, message, status } = req.body;
 
       const data = await db("notifications").insert({
         id,
         user_id,
         message,
-        status,
-        created_at
+        status
       });
 
       res.status(201).json({

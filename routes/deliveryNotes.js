@@ -10,6 +10,26 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Search Delivery Notes
+app.get(
+  "/search-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const deliveryNotes = await db("delivery_notes")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.json(deliveryNotes);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Delivery Notes
 app.get(
   "/view-delivery-notes",
@@ -35,13 +55,12 @@ app.post(
   authorizePermission("create_delivery_notes"),
   async (req, res) => {
     try {
-      const { id, pr_id, verified_by, verified_at, status } = req.body;
+      const { id, pr_id, verified_by, status } = req.body;
 
       const data = await db("delivery_notes").insert({
         id,
         pr_id,
         verified_by,
-        verified_at,
         status,
       });
 
@@ -63,12 +82,11 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { pr_id, verified_by, verified_at, status } = req.body;
+      const { pr_id, verified_by, status } = req.body;
 
       data = await db("delivery_notes").where({ id }).update({
         pr_id,
         verified_by,
-        verified_at,
         status,
       });
 
@@ -102,4 +120,4 @@ app.delete(
   }
 );
 
-modeule.exports = app;
+module.exports = app;

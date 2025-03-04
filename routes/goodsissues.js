@@ -1,10 +1,4 @@
 const express = require("express");
-const bcrypt = require("bcrypt");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
-
-dotenv.config();
-const SECRET_KEY = process.env.SECRET_KEY;
 
 const app = express.Router();
 app.use(express.json());
@@ -15,6 +9,26 @@ const {
   authenticateToken,
   authorizePermission,
 } = require("../middleware/authentication.js");
+
+// Search Goods Issue
+app.get(
+  "/search-goods-issue",
+  authenticateToken,
+  authorizePermission("view_goods_issue"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const goodsIssue = await db("goods_issue")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.json(goodsIssue);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
 
 // Read goods_issue
 app.get(
@@ -41,14 +55,13 @@ app.post(
   authorizePermission("create_goods_issue"),
   async (req, res) => {
     try {
-      const { id, product_id, issued_to, issued_by, issued_at } = req.body;
+      const { id, product_id, issued_to, issued_by } = req.body;
 
       const data = await db("goods_issue").insert({
         id,
         product_id,
         issued_to,
-        issued_by,
-        issued_at
+        issued_by
       });
 
       res.status(201).json({
@@ -66,15 +79,14 @@ app.put(
   authorizePermission("update_goods_issue"),
   async (req, res) => {
     try {
-      const { id, product_id, issued_to, issued_by, issued_at } = req.body;
+      const { id, product_id, issued_to, issued_by } = req.body;
 
       const data = await db("goods_issue")
         .where({ id: id })
         .update({
           product_id,
           issued_to,
-          issued_by,
-          issued_at
+          issued_by
         });
 
       res.status(201).json({
