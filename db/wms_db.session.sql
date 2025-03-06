@@ -153,3 +153,6 @@ CREATE TABLE sap_sync_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (pr_id) REFERENCES purchase_requests(id) ON DELETE SET NULL
 );
+
+
+/* INPUT VALUES */
