@@ -17,10 +17,9 @@ app.get(
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
     try {
-      const data = await db("purchase_requests").select("*");
+      await db("purchase_requests").select("*");
       res.status(201).json({
-        message: `Purchase Requests Viewed successfully`,
-        data: data,
+        message: `Search successful`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -37,13 +36,12 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("purchase_requests")
+      await db("purchase_requests")
         .select("*")
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
         message: `Purchase Requests searched successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,25 +56,17 @@ app.post(
   authorizePermission("create_purchase_requests"),
   async (req, res) => {
     try {
-      const {
-        id,
-        created_by,
-        status,
-        approved_by,
-        sap_sync_status
-      } = req.body;
+      const { created_by, status, approved_by, sap_sync_status } = req.body;
 
-      const data = await db("purchase_requests").insert({
-        id,
+      await db("purchase_requests").insert({
         created_by,
         status,
         approved_by,
-        sap_sync_status
+        sap_sync_status,
       });
 
       res.status(201).json({
         message: `Purchase Request Created successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -92,23 +82,17 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        created_by,
-        status,
-        approved_by,
-        sap_sync_status
-      } = req.body;
+      const { created_by, status, approved_by, sap_sync_status } = req.body;
 
-      const data = await db("purchase_requests").where({ id }).update({
+      await db("purchase_requests").where({ id }).update({
         created_by,
         status,
         approved_by,
-        sap_sync_status
+        sap_sync_status,
       });
 
       res.status(201).json({
         message: `Purchase Request Updated successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -125,11 +109,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("purchase_requests").where({ id }).del();
+      await db("purchase_requests").where({ id }).del();
 
       res.status(201).json({
         message: `Purchase Request Deleted successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

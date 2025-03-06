@@ -19,11 +19,11 @@ app.get(
     try {
       const { search } = req.query;
 
-      const deliveryNotes = await db("delivery_notes")
-        .select("*")
-        .where("id", "like", `%${search}%`);
+      await db("delivery_notes").select("*").where("id", "like", `%${search}%`);
 
-      res.json(deliveryNotes);
+      res.status(201).json({
+        message: `Search successful`,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -37,10 +37,9 @@ app.get(
   authorizePermission("view_delivery_notes"),
   async (req, res) => {
     try {
-      const data = await db("delivery_notes").select("*");
+      await db("delivery_notes").select("*");
       res.status(201).json({
         message: `Delivery Notes Viewed successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -55,10 +54,9 @@ app.post(
   authorizePermission("create_delivery_notes"),
   async (req, res) => {
     try {
-      const { id, pr_id, verified_by, status } = req.body;
+      const { pr_id, verified_by, status } = req.body;
 
-      const data = await db("delivery_notes").insert({
-        id,
+      await db("delivery_notes").insert({
         pr_id,
         verified_by,
         status,
@@ -66,7 +64,6 @@ app.post(
 
       res.status(201).json({
         message: `Delivery Note Created successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -84,15 +81,15 @@ app.put(
       const { id } = req.params;
       const { pr_id, verified_by, status } = req.body;
 
-      data = await db("delivery_notes").where({ id }).update({
+      await db("delivery_notes").where({ id }).update({
+        id,
         pr_id,
         verified_by,
         status,
       });
 
       res.status(201).json({
-        message: `Delivery Note ${id} Updated successfully`,
-        data: data,
+        message: `Delivery Note Updated successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -112,7 +109,7 @@ app.delete(
       await db("delivery_notes").where({ id }).del();
 
       res.status(201).json({
-        message: `Delivery Note ${id} Deleted successfully`,
+        message: `Delivery Note Deleted successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

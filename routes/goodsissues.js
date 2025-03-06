@@ -19,11 +19,11 @@ app.get(
     try {
       const { search } = req.query;
 
-      const goodsIssue = await db("goods_issue")
-        .select("*")
-        .where("id", "like", `%${search}%`);
+      await db("goods_issue").select("*").where("id", "like", `%${search}%`);
 
-      res.json(goodsIssue);
+      res.status(201).json({
+        message: `Search successful`,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -37,10 +37,9 @@ app.get(
   authorizePermission("view_goods_issue"),
   async (req, res) => {
     try {
-      const data = await db("goods_issue").select("*");
+      await db("goods_issue").select("*");
       res.status(201).json({
         message: `Goods Issue Viewed successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -55,23 +54,22 @@ app.post(
   authorizePermission("create_goods_issue"),
   async (req, res) => {
     try {
-      const { id, product_id, issued_to, issued_by } = req.body;
+      const { product_id, issued_to, issued_by } = req.body;
 
-      const data = await db("goods_issue").insert({
-        id,
+      await db("goods_issue").insert({
         product_id,
         issued_to,
-        issued_by
+        issued_by,
       });
 
       res.status(201).json({
         message: `Goods Issue Created successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  });
+  }
+);
 // Update goods_issue
 app.put(
   "/update-goods-issue/:id",
@@ -81,17 +79,14 @@ app.put(
     try {
       const { id, product_id, issued_to, issued_by } = req.body;
 
-      const data = await db("goods_issue")
-        .where({ id: id })
-        .update({
-          product_id,
-          issued_to,
-          issued_by
-        });
+      await db("goods_issue").where({ id: id }).update({
+        product_id,
+        issued_to,
+        issued_by,
+      });
 
       res.status(201).json({
         message: `Goods Issue Updated successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -107,11 +102,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("goods_issue").where({ id }).del();
+      await db("goods_issue").where({ id }).del();
 
       res.status(201).json({
         message: `Goods Issue Deleted successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -120,4 +114,3 @@ app.delete(
 );
 
 module.exports = app;
-

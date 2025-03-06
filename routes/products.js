@@ -19,13 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("products")
-        .select("*")
-        .where("name", "like", `%${search}%`);
+      await db("products").select("*").where("name", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Products searched successfully`,
-        data,
+        message: "Search successful",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +37,9 @@ app.get(
   authorizePermission("view_products"),
   async (req, res) => {
     try {
-      const data = await db("products").select("*");
+      await db("products").select("*");
       res.status(201).json({
-        message: `Products Viewed successfully`,
-        data,
+        message: "Products viewed successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -59,7 +55,6 @@ app.post(
   async (req, res) => {
     try {
       const {
-        id,
         name,
         sku,
         description,
@@ -68,8 +63,7 @@ app.post(
         unit_price,
       } = req.body;
 
-      const data = await db("products").insert({
-        id,
+      await db("products").insert({
         name,
         sku,
         description,
@@ -79,8 +73,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Product ${name} created successfully`,
-        data: data,
+        message: "Product created successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -105,7 +98,7 @@ app.put(
         unit_price,
       } = req.body;
 
-      const data = await db("products").where({ id }).update({
+      await db("products").where({ id }).update({
         name,
         sku,
         description,
@@ -115,8 +108,7 @@ app.put(
       });
 
       res.status(201).json({
-        message: `Product ${name} updated successfully`,
-        data: data,
+        message: "Product updated successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -136,7 +128,7 @@ app.delete(
       await db("products").where({ id }).del();
 
       res.status(201).json({
-        message: `Product deleted successfully`,
+        message: "Product deleted successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

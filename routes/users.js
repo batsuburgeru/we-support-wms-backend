@@ -18,52 +18,52 @@ const {
 
 // Login Users
 app.post("/login", async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        // Check if user exists
-        const user = await db("users")
-            .select("id", "name", "email", "password_hash", "role")
-            .where("email", email)
-            .first();
+    // Check if user exists
+    const user = await db("users")
+      .select("id", "name", "email", "password_hash", "role")
+      .where("email", email)
+      .first();
 
-        if (!user) {
-            return res.status(401).json({ error: "Invalid email or password" });
-        }
-
-        // Compare passwords
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        if (!passwordMatch) {
-            return res.status(401).json({ error: "Invalid email or password" });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { id: user.id, name: user.name, email: user.email, role: user.role },
-            SECRET_KEY,
-            { expiresIn: "1h" }
-        );
-
-        // Set token as an HTTP-only cookie
-        res.cookie("token", token, {
-            httpOnly: true, // Prevents JavaScript access (More Secure)
-            secure: process.env.NODE_ENV === "production", // Enables Secure flag in production (HTTPS required)
-            sameSite: "Strict", // Prevents CSRF attacks
-            maxAge: 60 * 60 * 1000 // Expires in 1 hour
-        });
-
-        res.json({ message: "Login successful", data: token });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password" });
     }
+
+    // Compare passwords
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, role: user.role },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    // Set token as an HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true, // Prevents JavaScript access (More Secure)
+      secure: process.env.NODE_ENV === "production", // Enables Secure flag in production (HTTPS required)
+      sameSite: "Strict", // Prevents CSRF attacks
+      maxAge: 60 * 60 * 1000, // Expires in 1 hour
+    });
+
+    res.json({ message: "Login successful", data: token });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Logout Users
 app.post("/logout", (req, res) => {
   res.clearCookie("token", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict"
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
   });
 
   res.json({ message: "Logged out successfully" });
@@ -91,20 +91,23 @@ app.post(
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      await db("users").insert({
+      const data = await db("users").insert({
+        id,
         name,
         email,
         password_hash: hashedPassword,
         role,
       });
 
-      res.status(201).json({ message: "User created successfully" });
+      res.status(201).json({
+        message: `Stock Transaction ${id} Created successfully`,
+        data,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
 );
-
 
 // Search Users
 app.get(
@@ -115,11 +118,14 @@ app.get(
     try {
       const { search } = req.query;
 
-      const users = await db("users")
+      const data = await db("users")
         .select("*")
         .where("name", "like", `%${search}%`);
 
-      res.json(users);
+      res.status(201).json({
+        message: `Search successful`,
+        data,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -134,7 +140,10 @@ app.get(
   async (req, res) => {
     try {
       const users = await db("users").select("*");
-      res.json(users);
+      res.status(201).json({
+        message: `Users Viewed successfully`,
+        data,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -151,11 +160,27 @@ app.put(
       const { id } = req.params;
       const { name, email, role } = req.body;
 
-      await db("users")
-        .where("id", id)
-        .update({ name, email, role });
+      await db("users").where("id", id).update({ name, email, role });
 
       res.json({ message: "User updated successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Delete User
+app.delete(
+  "/delete-user/:id",
+  authenticateToken,
+  authorizePermission("delete_users"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await db("users").where("id", id).del();
+
+      res.status(201).json({ message: "User deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

@@ -19,13 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("goods_receipts")
-        .select("*")
-        .where("id", "like", `%${search}%`);
+      await db("goods_receipts").select("*").where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Goods Receipts searched successfully`,
-        data: data,
+        message: `Search successful`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +37,9 @@ app.get(
   authorizePermission("view_goods_receipts"),
   async (req, res) => {
     try {
-      const data = await db("goods_receipts").select("*");
+      await db("goods_receipts").select("*");
       res.status(201).json({
         message: `Goods Receipts Viewed successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,23 +54,16 @@ app.post(
   authorizePermission("create_goods_receipts"),
   async (req, res) => {
     try {
-      const {
-        id,
-        pr_id,
-        received_by,
-        status
-      } = req.body;
+      const { pr_id, received_by, status } = req.body;
 
-      const data = await db("goods_receipts").insert({
-        id,
+      await db("goods_receipts").insert({
         pr_id,
         received_by,
-        status
+        status,
       });
 
       res.status(201).json({
         message: `Goods Receipt Created successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -89,25 +78,17 @@ app.put(
   authorizePermission("update_goods_receipt"),
   async (req, res) => {
     try {
-      const {
+      const { id, pr_id, received_by, status } = req.body;
+
+      await db("goods_receipts").where({ id: req.params.id }).update({
         id,
         pr_id,
         received_by,
-        status
-      } = req.body;
-
-      const data = await db("goods_receipts")
-        .where({ id: req.params.id })
-        .update({
-            id,
-            pr_id,
-            received_by,
-            status
-        });
+        status,
+      });
 
       res.status(201).json({
         message: `Goods Receipt Updated successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -124,11 +105,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("goods_receipts").where({ id }).del();
+      await db("goods_receipts").where({ id }).del();
 
       res.status(201).json({
         message: `Goods Receipt Deleted successfully`,
-        data: data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

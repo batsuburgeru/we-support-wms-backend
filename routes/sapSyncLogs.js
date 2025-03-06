@@ -19,13 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("sap_sync_logs")
-        .select("*")
-        .where("id", "like", `%${search}%`);
+      await db("sap_sync_logs").select("*").where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `SAP Sync Logs searched successfully`,
-        data: data,
+        message: "Search successful",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +37,9 @@ app.get(
   authorizePermission("view_sap_sync_logs"),
   async (req, res) => {
     try {
-      const data = await db("sap_sync_logs").select("*");
+      await db("sap_sync_logs").select("*");
       res.status(201).json({
-        message: `SAP Sync Logs Viewed successfully`,
-        data,
+        message: "SAP Sync Logs Viewed successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,18 +54,16 @@ app.post(
   authorizePermission("create_sap_sync_logs"),
   async (req, res) => {
     try {
-      const { id, pr_id, transaction_id, status } = req.body;
+      const { pr_id, transaction_id, status } = req.body;
 
-      const data = await db("sap_sync_logs").insert({
-        id,
+      await db("sap_sync_logs").insert({
         pr_id,
         transaction_id,
         status,
       });
 
       res.status(201).json({
-        message: `SAP Sync Log Created successfully`,
-        data: data,
+        message: "SAP Sync Log Created successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -87,11 +81,10 @@ app.put(
       const { id } = req.params;
       const { status } = req.body;
 
-      const data = await db("sap_sync_logs").where({ id }).update({ status });
+      await db("sap_sync_logs").where({ id }).update({ status });
 
       res.status(201).json({
-        message: `SAP Sync Log Updated successfully`,
-        data: data,
+        message: "SAP Sync Log Updated successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -108,11 +101,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("sap_sync_logs").where({ id }).del();
+      await db("sap_sync_logs").where({ id }).del();
 
       res.status(201).json({
-        message: `SAP Sync Log Deleted successfully`,
-        data: data,
+        message: "SAP Sync Log Deleted successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

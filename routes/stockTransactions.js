@@ -19,13 +19,12 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("stock_transactions")
+      await db("stock_transactions")
         .select("*")
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Stock Transactions searched successfully`,
-        data: data,
+        message: "Search successful",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +39,9 @@ app.get(
   authorizePermission("view_stock_transactions"),
   async (req, res) => {
     try {
-      const data = await db("stock_transactions").select("*");
+      await db("stock_transactions").select("*");
       res.status(201).json({
-        message: `Stock Transactions Viewed successfully`,
-        data: data,
+        message: "Stock Transactions Viewed successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,16 +56,9 @@ app.post(
   authorizePermission("create_stock_transactions"),
   async (req, res) => {
     try {
-      const {
-        id,
-        product_id,
-        transaction_type,
-        quantity,
-        performed_by,
-      } = req.body;
+      const { product_id, transaction_type, quantity, performed_by } = req.body;
 
-      const data = await db("stock_transactions").insert({
-        id,
+      await db("stock_transactions").insert({
         product_id,
         transaction_type,
         quantity,
@@ -75,8 +66,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Stock Transaction Created successfully`,
-        data: data,
+        message: "Stock Transaction Created successfully",
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -92,18 +82,17 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const {
-        product_id,
-        transaction_type,
-        quantity,
-        performed_by,
-      } = req.body;
+      const { product_id, transaction_type, quantity, performed_by } = req.body;
 
-      const data = await db("stock_transactions").where({ id }).update({
+      await db("stock_transactions").where({ id }).update({
         product_id,
         transaction_type,
         quantity,
         performed_by,
+      });
+
+      res.status(201).json({
+        message: "Stock Transaction Updated successfully",
       });
 
       res.status(201).json({
@@ -125,11 +114,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("stock_transactions").where({ id }).del();
+      await db("stock_transactions").where({ id }).del();
 
       res.status(201).json({
         message: `Stock Transaction Deleted successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

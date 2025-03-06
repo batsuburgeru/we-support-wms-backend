@@ -10,7 +10,6 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-
 // Search Category
 app.get(
   "/search-category",
@@ -20,11 +19,11 @@ app.get(
     try {
       const { search } = req.query;
 
-      const categories = await db("categories")
-        .select("*")
-        .where("name", "like", `%${search}%`);
+      await db("categories").select("*").where("name", "like", `%${search}%`);
 
-      res.json(categories);
+      res.status(201).json({
+        message: `Categories Searched successfully`,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -38,10 +37,9 @@ app.get(
   authorizePermission("view_categories"),
   async (req, res) => {
     try {
-      const data = await db("categories").select("*");
+      await db("categories").select("*");
       res.status(201).json({
         message: `Categories Viewed successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,7 +56,7 @@ app.post(
     try {
       const { id, name, description } = req.body;
 
-      const data = await db("categories").insert({
+      await db("categories").insert({
         id,
         name,
         description,
@@ -66,7 +64,6 @@ app.post(
 
       res.status(201).json({
         message: `Category Created successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -84,13 +81,10 @@ app.put(
       const { id } = req.params;
       const { name, description } = req.body;
 
-      const data = await db("categories")
-        .where({ id })
-        .update({ name, description });
+      await db("categories").where({ id }).update({ name, description });
 
       res.status(201).json({
         message: `Category Updated successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -107,11 +101,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("categories").where({ id }).del();
+      await db("categories").where({ id }).del();
 
       res.status(201).json({
         message: `Category Deleted successfully`,
-        data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

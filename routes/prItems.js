@@ -19,13 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("pr_items")
-        .select("*")
-        .where("id", "like", `%${search}%`);
+      await db("pr_items").select("*").where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `PR Items searched successfully`,
-        data: data,
+        message: `Search successful`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +37,9 @@ app.get(
   authorizePermission("view_pr_items"),
   async (req, res) => {
     try {
-      const data = await db("pr_items").select("*");
+      await db("pr_items").select("*");
       res.status(201).json({
         message: `PR Items Viewed successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,11 +54,9 @@ app.post(
   authorizePermission("create_pr_items"),
   async (req, res) => {
     try {
-      const { id, pr_id, product_id, quantity, unit_price, total_price } =
-        req.body;
+      const { pr_id, product_id, quantity, unit_price, total_price } = req.body;
 
-      const data = await db("pr_items").insert({
-        id,
+      await db("pr_items").insert({
         pr_id,
         product_id,
         quantity,
@@ -72,7 +66,6 @@ app.post(
 
       res.status(201).json({
         message: `PR Item Created successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -90,7 +83,7 @@ app.put(
       const { id } = req.params;
       const { pr_id, product_id, quantity, unit_price, total_price } = req.body;
 
-      const data = await db("pr_items").where({ id }).update({
+      await db("pr_items").where({ id }).update({
         pr_id,
         product_id,
         quantity,
@@ -100,7 +93,6 @@ app.put(
 
       res.status(201).json({
         message: `PR Item Updated successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -117,11 +109,10 @@ app.delete(
     try {
       const { id } = req.params;
 
-      const data = await db("pr_items").where({ id }).del();
+      await db("pr_items").where({ id }).del();
 
       res.status(201).json({
         message: `PR Item Deleted successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
