@@ -19,12 +19,12 @@ app.get(
     try {
       const { search } = req.query;
 
-      await db("notifications")
+      data = await db("notifications")
         .select("*")
         .where("message", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful",
+        message: "Search successful", data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -39,9 +39,9 @@ app.get(
   authorizePermission("view_notifications"),
   async (req, res) => {
     try {
-      await db("notifications").select("*");
+      data = await db("notifications").select("*");
       res.status(201).json({
-        message: "Notifications Viewed successfully",
+        message: "Notifications Viewed successfully", data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

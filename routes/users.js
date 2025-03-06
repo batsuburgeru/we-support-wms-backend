@@ -124,7 +124,7 @@ app.get(
 
       res.status(201).json({
         message: `Search successful`,
-        data,
+        data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -142,7 +142,7 @@ app.get(
       const users = await db("users").select("*");
       res.status(201).json({
         message: `Users Viewed successfully`,
-        data,
+        data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

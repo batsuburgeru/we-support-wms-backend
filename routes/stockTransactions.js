@@ -19,12 +19,12 @@ app.get(
     try {
       const { search } = req.query;
 
-      await db("stock_transactions")
+      data = await db("stock_transactions")
         .select("*")
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful",
+        message: "Search successful", data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -39,9 +39,9 @@ app.get(
   authorizePermission("view_stock_transactions"),
   async (req, res) => {
     try {
-      await db("stock_transactions").select("*");
+      data = await db("stock_transactions").select("*");
       res.status(201).json({
-        message: "Stock Transactions Viewed successfully",
+        message: "Stock Transactions Viewed successfully", data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

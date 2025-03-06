@@ -19,10 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      await db("delivery_notes").select("*").where("id", "like", `%${search}%`);
+      data = await db("delivery_notes").select("*").where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Search successful`,
+        message: `Search successful`, data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -37,9 +37,9 @@ app.get(
   authorizePermission("view_delivery_notes"),
   async (req, res) => {
     try {
-      await db("delivery_notes").select("*");
+      data = await db("delivery_notes").select("*");
       res.status(201).json({
-        message: `Delivery Notes Viewed successfully`,
+        message: `Delivery Notes Viewed successfully`, data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

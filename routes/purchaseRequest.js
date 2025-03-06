@@ -36,12 +36,12 @@ app.get(
     try {
       const { search } = req.query;
 
-      await db("purchase_requests")
+      data = await db("purchase_requests")
         .select("*")
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Purchase Requests searched successfully`,
+        message: `Purchase Requests searched successfully`, data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -58,7 +58,7 @@ app.post(
     try {
       const { created_by, status, approved_by, sap_sync_status } = req.body;
 
-      await db("purchase_requests").insert({
+      data = await db("purchase_requests").insert({
         created_by,
         status,
         approved_by,
@@ -66,7 +66,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Purchase Request Created successfully`,
+        message: `Purchase Request Created successfully`, data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

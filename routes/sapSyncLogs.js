@@ -19,10 +19,10 @@ app.get(
     try {
       const { search } = req.query;
 
-      await db("sap_sync_logs").select("*").where("id", "like", `%${search}%`);
+      data = await db("sap_sync_logs").select("*").where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful",
+        message: "Search successful", data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -37,9 +37,9 @@ app.get(
   authorizePermission("view_sap_sync_logs"),
   async (req, res) => {
     try {
-      await db("sap_sync_logs").select("*");
+      data = await db("sap_sync_logs").select("*");
       res.status(201).json({
-        message: "SAP Sync Logs Viewed successfully",
+        message: "SAP Sync Logs Viewed successfully", data 
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
