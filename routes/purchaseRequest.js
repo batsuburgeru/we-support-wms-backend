@@ -19,7 +19,7 @@ app.get(
     try {
       await db("purchase_requests").select("*");
       res.status(201).json({
-        message: `Search successful`,
+        message: `Search successful`, data
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -66,7 +66,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Purchase Request Created successfully`, data
+        message: `Purchase Request Created successfully`
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
