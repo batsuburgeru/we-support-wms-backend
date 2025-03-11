@@ -10,6 +10,27 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Filter Notifications using Status
+app.get(
+  "/filter-notifications",
+  authenticateToken,
+  authorizePermission("view_notifications"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("notifications").select("*").where("status", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Notifications filtered successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Search Notifications
 app.get(
   "/search-notification",

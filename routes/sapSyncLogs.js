@@ -10,6 +10,27 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Filter SAP Sync Logs using Status
+app.get(
+  "/filter-sap-sync-logs",
+  authenticateToken,
+  authorizePermission("view_sap_sync_logs"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("sap_sync_logs").select("*").where("status", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: "SAP Sync Logs filtered successfully",
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Search SAP Sync Logs
 app.get(
   "/search-sap-sync-log",

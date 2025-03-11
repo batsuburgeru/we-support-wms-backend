@@ -6,10 +6,26 @@ app.use(express.json());
 const db = require("../db/db.js");
 
 const {
-  //open.spotify.com/playlist/37i9dQZF1EIZCsyhLFyG4d
-  https: authenticateToken,
+  authenticateToken,
   authorizePermission,
 } = require("../middleware/authentication.js");
+
+// Filter Delivery Notes using Status
+app.get("/filter-delivery-notes", authenticateToken, authorizePermission("view_delivery_notes"),
+   async (req, res) => {
+  try {
+    const { search } = req.query;
+
+    data = await db("delivery_notes").select("*").where("status", "like", `%${search}%`);
+
+    res.status(201).json({
+      message: `Delivery Notes filtered successfully`,
+      data: data,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Search Delivery Notes
 app.get(

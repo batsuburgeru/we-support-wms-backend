@@ -109,6 +109,27 @@ app.post(
   }
 );
 
+// Filter Users using Role
+app.get(
+  "/filter-users",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const data = await db("users").select("*").where("role", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Users filtered successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Search Users
 app.get(
   "/search-users",

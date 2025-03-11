@@ -10,6 +10,27 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Filter Purchase Requests using Status
+app.get(
+  "/filter-purchase-requests",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("purchase_requests").select("*").where("status", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Purchase Requests filtered successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Purchase Requests
 app.get(
   "/view-purchase-requests",

@@ -10,6 +10,27 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Filter Goods Receipts using Status
+app.get(
+  "/filter-goods-receipts",
+  authenticateToken,
+  authorizePermission("view_goods_receipts"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("goods_receipts").select("*").where("status", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Goods Receipts filtered successfully`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Search Goods Receipts
 app.get(
   "/search-goods-receipt",

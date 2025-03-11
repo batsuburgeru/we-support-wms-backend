@@ -10,6 +10,29 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Filter Stock Transactions using Transaction Type
+app.get(
+  "/filter-stock-transactions",
+  authenticateToken,
+  authorizePermission("view_stock_transactions"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("stock_transactions")
+        .select("*")
+        .where("transaction_type", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: "Stock Transactions filtered successfully",
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Search Stock Transactions
 app.get(
   "/search-stock-transactions",
