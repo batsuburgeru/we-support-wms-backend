@@ -24,7 +24,8 @@ app.get(
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful", data
+        message: "Search successful",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -41,7 +42,8 @@ app.get(
     try {
       data = await db("stock_transactions").select("*");
       res.status(201).json({
-        message: "Stock Transactions Viewed successfully", data
+        message: "Stock Transactions Viewed successfully",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -93,11 +95,6 @@ app.put(
 
       res.status(201).json({
         message: "Stock Transaction Updated successfully",
-      });
-
-      res.status(201).json({
-        message: `Stock Transaction Updated successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

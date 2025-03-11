@@ -17,9 +17,10 @@ app.get(
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
     try {
-      await db("purchase_requests").select("*");
+      data = await db("purchase_requests").select("*");
       res.status(201).json({
-        message: `Search successful`, data
+        message: `Search successful`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -41,7 +42,8 @@ app.get(
         .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Purchase Requests searched successfully`, data
+        message: `Purchase Requests searched successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -66,7 +68,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Purchase Request Created successfully`
+        message: `Purchase Request Created successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

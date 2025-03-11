@@ -101,7 +101,7 @@ app.post(
 
       res.status(201).json({
         message: `Stock Transaction ${id} Created successfully`,
-        data,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -124,7 +124,7 @@ app.get(
 
       res.status(201).json({
         message: `Search successful`,
-        data
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -139,10 +139,10 @@ app.get(
   authorizePermission("view_users"),
   async (req, res) => {
     try {
-      const users = await db("users").select("*");
+      const data = await db("users").select("*");
       res.status(201).json({
         message: `Users Viewed successfully`,
-        data
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -162,7 +162,9 @@ app.put(
 
       await db("users").where("id", id).update({ name, email, role });
 
-      res.json({ message: "User updated successfully" });
+      res.status(201).json({
+        message: `Users Viewed successfully`,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

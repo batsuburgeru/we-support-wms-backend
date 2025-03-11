@@ -24,7 +24,8 @@ app.get(
         .where("message", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful", data
+        message: "Search successful",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -41,7 +42,8 @@ app.get(
     try {
       data = await db("notifications").select("*");
       res.status(201).json({
-        message: "Notifications Viewed successfully", data
+        message: "Notifications Viewed successfully",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

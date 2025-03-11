@@ -19,10 +19,13 @@ app.get(
     try {
       const { search } = req.query;
 
-      data = await db("categories").select("*").where("name", "like", `%${search}%`);
+      data = await db("categories")
+        .select("*")
+        .where("name", "like", `%${search}%`);
 
       res.status(201).json({
-        message: `Categories Searched successfully`, data
+        message: `Categories Searched successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -39,7 +42,8 @@ app.get(
     try {
       data = await db("categories").select("*");
       res.status(201).json({
-        message: `Categories Viewed successfully`, data
+        message: `Categories Viewed successfully`,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

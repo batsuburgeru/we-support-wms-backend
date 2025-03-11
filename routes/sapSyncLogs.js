@@ -19,10 +19,13 @@ app.get(
     try {
       const { search } = req.query;
 
-      data = await db("sap_sync_logs").select("*").where("id", "like", `%${search}%`);
+      data = await db("sap_sync_logs")
+        .select("*")
+        .where("id", "like", `%${search}%`);
 
       res.status(201).json({
-        message: "Search successful", data
+        message: "Search successful",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -39,7 +42,8 @@ app.get(
     try {
       data = await db("sap_sync_logs").select("*");
       res.status(201).json({
-        message: "SAP Sync Logs Viewed successfully", data 
+        message: "SAP Sync Logs Viewed successfully",
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
