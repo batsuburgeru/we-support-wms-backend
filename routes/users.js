@@ -92,7 +92,6 @@ app.post(
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const data = await db("users").insert({
-        id,
         name,
         email,
         password_hash: hashedPassword,
@@ -100,7 +99,7 @@ app.post(
       });
 
       res.status(201).json({
-        message: `Stock Transaction ${id} Created successfully`,
+        message: `User Created successfully`,
         data: data,
       });
     } catch (error) {
@@ -184,7 +183,7 @@ app.put(
       await db("users").where("id", id).update({ name, email, role });
 
       res.status(201).json({
-        message: `Users Viewed successfully`,
+        message: `User Updated successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -203,7 +202,7 @@ app.delete(
 
       await db("users").where("id", id).del();
 
-      res.status(201).json({ message: "User deleted successfully" });
+      res.status(201).json({ message: "User Deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

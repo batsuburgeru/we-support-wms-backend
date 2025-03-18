@@ -1,4 +1,5 @@
 const express = require("express");
+const { v4: uuidv4 } = require('uuid');
 
 const app = express.Router();
 app.use(express.json());
@@ -10,22 +11,391 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-// Filter Purchase Requests using Status
+
+// Create Purchase Request
+app.post(
+  "/create-purchase-request",
+  authenticateToken,
+  authorizePermission("create_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      const id = uuidv4(); // Generate UUID manually
+      const { 
+        created_by, status, sap_sync_status, note,
+        items
+      } = req.body;
+
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error("Items array is required and cannot be empty.");
+      }
+
+      // Insert into purchase_requests
+      await trx("purchase_requests").insert({
+        id: id,
+        created_by,
+        status,
+        sap_sync_status,
+      });
+
+      // Retrieve the inserted purchase request
+      const [purchaseRequest] = await trx("purchase_requests")
+        .select("*")
+        .where("id", id);
+
+      // Insert into delivery_notes
+      await trx("delivery_notes").insert({
+        id: uuidv4(),
+        pr_id: id,
+        note: note,
+      });
+
+      // Retrieve the inserted delivery note
+      const [deliveryNote] = await trx("delivery_notes")
+        .select("*")
+        .where("pr_id", id);
+
+      const prItemsData = items.map((item) => ({
+          id: uuidv4(),
+          pr_id: id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }));
+
+        await trx("pr_items").insert(prItemsData);
+
+      // Retrieve all inserted PR items
+      const prItems = await trx("pr_items").select("*").where("pr_id", id);
+
+      await trx.commit(); // Commit transaction
+
+      res.status(201).json({
+        message: `Purchase Request, Delivery Note, and PR Items created successfully`,
+        purchaseRequest,
+        deliveryNote,
+        prItems, // Return all inserted items
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read All Purchase Requests
+app.get(
+  "/read-purchase-requests",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      // Fetch all purchase requests
+      const purchaseRequests = await trx("purchase_requests").select("*");
+
+      if (purchaseRequests.length === 0) {
+        throw new Error("No Purchase Requests found.");
+      }
+
+      // Process results for each purchase request
+      const results = await Promise.all(
+        purchaseRequests.map(async (purchaseRequest) => {
+          const prId = purchaseRequest.id;
+
+          // Fetch related delivery note
+          const [deliveryNote] = await trx("delivery_notes")
+            .select("*")
+            .where("pr_id", prId);
+
+          // Fetch related PR items
+          const prItems = await trx("pr_items")
+            .select("*")
+            .where("pr_id", prId);
+
+          return {
+            purchaseRequest,
+            deliveryNote: deliveryNote || null,
+            prItems,
+          };
+        })
+      );
+
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
+        message: `All Purchase Requests retrieved successfully`,
+        data: results,
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+); 
+
+// Read Specific Purchase Request
+app.get(
+  "/search-purchase-request",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      const { search } = req.query;
+
+      // Fetch the purchase request
+      const purchaseRequest = await trx("purchase_requests").where("id", search).first();
+
+      if (!purchaseRequest) {
+        throw new Error("Purchase Request not found.");
+      }
+
+      // Fetch related delivery note
+      const deliveryNote = await trx("delivery_notes")
+        .select("*")
+        .where("pr_id", search)
+        .first();
+
+      // Fetch related PR items
+      const prItems = await trx("pr_items")
+        .select("*")
+        .where("pr_id", search);
+
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
+        message: `Purchase Request retrieved successfully`,
+        data: {
+          purchaseRequest,
+          deliveryNote: deliveryNote || null,
+          prItems,
+        },
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read All Purchase Requests
 app.get(
   "/filter-purchase-requests",
   authenticateToken,
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      const { search } = req.query;
+      // Fetch all purchase requests
+      const purchaseRequests = await trx("purchase_requests").where("status", search).select("*");
+
+      // Process results for each purchase request
+      const results = await Promise.all(
+        purchaseRequests.map(async (purchaseRequest) => {
+          const prId = purchaseRequest.id;
+
+          // Fetch related delivery note
+          const [deliveryNote] = await trx("delivery_notes")
+            .select("*")
+            .where("pr_id", prId);
+
+          // Fetch related PR items
+          const prItems = await trx("pr_items")
+            .select("*")
+            .where("pr_id", prId);
+
+          return {
+            purchaseRequest,
+            deliveryNote: deliveryNote || null,
+            prItems,
+          };
+        })
+      );
+
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
+        message: `All Purchase Requests retrieved successfully`,
+        data: results,
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+); 
+
+// Update Purchase Request
+app.put(
+  "/update-purchase-request/:id",
+  authenticateToken,
+  authorizePermission("update_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      const { id } = req.params;
+      const { status, approved_by, sap_sync_status, note, items } = req.body;
+
+      // Fetch existing purchase request
+      const existingPurchaseRequest = await trx("purchase_requests").where({ id }).first();
+      if (!existingPurchaseRequest) {
+        throw new Error("Purchase request not found.");
+      }
+
+      // Prepare updated data (only update fields that are provided)
+      const updatedPurchaseData = {
+        status: status ?? existingPurchaseRequest.status,
+        approved_by: approved_by ?? existingPurchaseRequest.approved_by,
+        sap_sync_status: sap_sync_status ?? existingPurchaseRequest.sap_sync_status,
+      };
+
+      // Update purchase_requests table
+      await trx("purchase_requests").where({ id }).update(updatedPurchaseData);
+
+      // Update delivery_notes only if note is provided
+      if (note !== undefined && note !== null) {
+        await trx("delivery_notes").where({ pr_id: id }).update({ note: note });
+      }
+
+      // Handle items update
+      if (Array.isArray(items) && items.length > 0) {
+        // Delete old items and insert new ones
+        await trx("pr_items").where({ pr_id: id }).del();
+
+        const prItemsData = items.map((item) => ({
+          id: uuidv4(),
+          pr_id: id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price
+        }));
+
+        await trx("pr_items").insert(prItemsData);
+      }
+
+      // Retrieve updated data
+      const updatedPurchaseRequest = await trx("purchase_requests").where({ id }).first();
+      const updatedDeliveryNote = await trx("delivery_notes").where({ pr_id: id }).first();
+      const updatedPrItems = await trx("pr_items").where({ pr_id: id });
+
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
+        message: "Purchase Request updated successfully",
+        purchaseRequest: updatedPurchaseRequest,
+        deliveryNote: updatedDeliveryNote,
+        prItems: updatedPrItems,
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update Purchase Request Status
+app.put(
+  "/update-purchase-request-status/:id",
+  authenticateToken,
+  authorizePermission("update_purchase_requests"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!status) {
+        throw new Error("Status is required.");
+      }
+
+      // Fetch existing purchase request
+      const existingPurchaseRequest = await db("purchase_requests").where({ id }).first();
+      if (!existingPurchaseRequest) {
+        return res.status(404).json({ error: "Purchase request not found." });
+      }
+
+      // Update status in purchase_requests
+      await db("purchase_requests").where({ id }).update({
+        status
+      });
+
+      res.status(200).json({
+        message: "Purchase Request status updated successfully",
+        purchaseRequest: { id, status },
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Delete Purchase Request
+app.delete(
+  "/delete-purchase-request/:id",
+  authenticateToken,
+  authorizePermission("delete_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
+    try {
+      const { id } = req.params;
+
+      // Check if the purchase request exists
+      const purchaseRequest = await trx("purchase_requests").where({ id }).first();
+      if (!purchaseRequest) {
+        throw new Error("Purchase Request not found.");
+      }
+
+      // Delete related PR items
+      await trx("pr_items").where({ pr_id: id }).del();
+
+      // Delete related delivery note
+      await trx("delivery_notes").where({ pr_id: id }).del();
+
+      // Delete purchase request
+      await trx("purchase_requests").where({ id }).del();
+
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
+        message: `Purchase Request and related records deleted successfully.`, purchaseRequest
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/* // Filter Purchase Requests using Status
+app.get(
+  "/filter-purchase-requests",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    const trx = await db.transaction(); // Start a transaction
+
     try {
       const { search } = req.query;
 
-      data = await db("purchase_requests").select("*").where("status", "like", `%${search}%`);
+      const data = await trx("purchase_requests")
+        .select("*")
+        .where("status", "like", `%${search}%`);
 
-      res.status(201).json({
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
         message: `Purchase Requests filtered successfully`,
         data: data,
       });
     } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
       res.status(500).json({ error: error.message });
     }
   }
@@ -37,61 +407,54 @@ app.get(
   authenticateToken,
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
+    const trx = await db.transaction();
+
     try {
-      data = await db("purchase_requests").select("*");
-      res.status(201).json({
+      const data = await trx("purchase_requests").select("*");
+
+      await trx.commit();
+
+      res.status(200).json({
         message: `Search successful`,
         data: data,
       });
     } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
-);
+); */
 
-// Search Purchase Requests
+
+
+
+
+// Update Purchase Request
+
+
+/* // Search Purchase Requests
 app.get(
   "/search-purchase-request",
   authenticateToken,
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
+    const trx = await db.transaction(); // Start a transaction
+
     try {
       const { search } = req.query;
 
-      data = await db("purchase_requests")
+      const data = await trx("purchase_requests")
         .select("*")
         .where("id", "like", `%${search}%`);
 
-      res.status(201).json({
+      await trx.commit(); // Commit transaction
+
+      res.status(200).json({
         message: `Purchase Requests searched successfully`,
         data: data,
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Create Purchase Requests
-app.post(
-  "/create-purchase-request",
-  authenticateToken,
-  authorizePermission("create_purchase_requests"),
-  async (req, res) => {
-    try {
-      const { created_by, status, approved_by, sap_sync_status } = req.body;
-
-      data = await db("purchase_requests").insert({
-        created_by,
-        status,
-        approved_by,
-        sap_sync_status,
-      });
-
-      res.status(201).json({
-        message: `Purchase Request Created successfully`,
-      });
-    } catch (error) {
+      await trx.rollback(); // Rollback transaction on error
       res.status(500).json({ error: error.message });
     }
   }
@@ -141,6 +504,6 @@ app.delete(
       res.status(500).json({ error: error.message });
     }
   }
-);
+); */
 
 module.exports = app;
