@@ -22,8 +22,9 @@ app.post(
 
     try {
       const id = uuidv4(); // Generate UUID manually
+      const created_by = req.user.id;
       const { 
-        created_by, status, sap_sync_status, note,
+        status, sap_sync_status, note,
         items
       } = req.body;
 
@@ -96,8 +97,11 @@ app.get(
       // Fetch all purchase requests
       const purchaseRequests = await trx("purchase_requests").select("*");
 
-      if (purchaseRequests.length === 0) {
-        throw new Error("No Purchase Requests found.");
+      if (!purchaseRequests || purchaseRequests.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
       }
 
       // Process results for each purchase request
@@ -150,8 +154,11 @@ app.get(
       // Fetch the purchase request
       const purchaseRequest = await trx("purchase_requests").where("id", search).first();
 
-      if (!purchaseRequest) {
-        throw new Error("Purchase Request not found.");
+      if (!purchaseRequest || purchaseRequest.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
       }
 
       // Fetch related delivery note
@@ -182,7 +189,7 @@ app.get(
   }
 );
 
-// Read All Purchase Requests
+// Filter Purchase Requests using Status
 app.get(
   "/filter-purchase-requests",
   authenticateToken,
@@ -194,6 +201,13 @@ app.get(
       const { search } = req.query;
       // Fetch all purchase requests
       const purchaseRequests = await trx("purchase_requests").where("status", search).select("*");
+      
+      if (!purchaseRequests || purchaseRequests.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
+      }
 
       // Process results for each purchase request
       const results = await Promise.all(
@@ -245,8 +259,11 @@ app.put(
 
       // Fetch existing purchase request
       const existingPurchaseRequest = await trx("purchase_requests").where({ id }).first();
-      if (!existingPurchaseRequest) {
-        throw new Error("Purchase request not found.");
+      if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
       }
 
       // Prepare updated data (only update fields that are provided)
@@ -316,8 +333,11 @@ app.put(
 
       // Fetch existing purchase request
       const existingPurchaseRequest = await db("purchase_requests").where({ id }).first();
-      if (!existingPurchaseRequest) {
-        return res.status(404).json({ error: "Purchase request not found." });
+      if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
       }
 
       // Update status in purchase_requests
@@ -348,8 +368,11 @@ app.delete(
 
       // Check if the purchase request exists
       const purchaseRequest = await trx("purchase_requests").where({ id }).first();
-      if (!purchaseRequest) {
-        throw new Error("Purchase Request not found.");
+      if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
+        await trx.commit();
+        return res.status(200).json({
+          message: "No matching Purchase Request found."
+        });
       }
 
       // Delete related PR items
