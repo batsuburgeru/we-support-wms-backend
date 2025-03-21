@@ -70,7 +70,7 @@ app.post(
       // Retrieve all inserted PR items
       const prItems = await trx("pr_items").select("*").where("pr_id", id);
 
-      await trx.commit(); // Commit transaction
+      await trx.commit(); // Commit transaction;'
 
       res.status(201).json({
         message: `Purchase Request, Delivery Note, and PR Items created successfully`,
@@ -80,6 +80,59 @@ app.post(
       });
     } catch (error) {
       await trx.rollback(); // Rollback transaction on error
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read Purchase Requests
+app.get(
+  "/view-purchase-requests",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+
+    try {
+      const data = await db("purchase_requests").select("*");
+
+      res.status(200).json({
+        message: `Purchase Requests retrieved successfully`,
+        data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read Purchase Requests with Status Count & Total Count
+app.get(
+  "/count-purchase-requests",
+  authenticateToken,
+  authorizePermission("view_purchase_requests"),
+  async (req, res) => {
+    try {
+      // Fetch purchase requests grouped by status
+      const statusCounts = await db("purchase_requests")
+        .select("status")
+        .count("* as count")
+        .groupBy("status");
+
+      // Fetch total number of purchase requests
+      const totalRequests = await db("purchase_requests").count("* as total");
+
+      // Convert result into an object like { "Pending": 3, "Rejected": 5 }
+      const formattedCounts = statusCounts.reduce((acc, row) => {
+        acc[row.status] = row.count;
+        return acc;
+      }, {});
+
+      res.status(200).json({
+        message: "Search successful",
+        status_counts: formattedCounts,
+        total_requests: totalRequests[0].total, // Extract total count
+      });
+    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
@@ -368,7 +421,7 @@ app.delete(
 
       // Check if the purchase request exists
       const purchaseRequest = await trx("purchase_requests").where({ id }).first();
-      if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
+      if (!purchaseRequest || purchaseRequest.length === 0) {
         await trx.commit();
         return res.status(200).json({
           message: "No matching Purchase Request found."
@@ -422,35 +475,7 @@ app.get(
       res.status(500).json({ error: error.message });
     }
   }
-);
-
-// Read Purchase Requests
-app.get(
-  "/view-purchase-requests",
-  authenticateToken,
-  authorizePermission("view_purchase_requests"),
-  async (req, res) => {
-    const trx = await db.transaction();
-
-    try {
-      const data = await trx("purchase_requests").select("*");
-
-      await trx.commit();
-
-      res.status(200).json({
-        message: `Search successful`,
-        data: data,
-      });
-    } catch (error) {
-      await trx.rollback();
-      res.status(500).json({ error: error.message });
-    }
-  }
 ); */
-
-
-
-
 
 // Update Purchase Request
 
