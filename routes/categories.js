@@ -34,8 +34,8 @@ app.post(
       await trx.commit(); // Commit transaction
 
       res.status(201).json({
-        message: "Category created successfully", category
-        
+        message: "Category created successfully",
+        category,
       });
     } catch (error) {
       await trx.rollback(); // Rollback on error
@@ -50,22 +50,20 @@ app.get(
   authenticateToken,
   authorizePermission("view_categories"),
   async (req, res) => {
-    const trx = await db.transaction(); // Start transaction
-
     try {
-      const categories = await trx("categories").select("*");
+      const categories = await db("categories").select("*");
 
-      if (categories.length === 0) {
-        throw new Error("No Categories found.");
+      if (!categories || categories.length === 0) {
+        return res.status(200).json({
+          message: "No matching Category found.",
+        });
       }
 
-      await trx.commit(); // Commit transaction
-
       res.status(200).json({
-        message: "Categories viewed successfully", categories
+        message: "Categories viewed successfully",
+        categories,
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
       res.status(500).json({ error: error.message });
     }
   }
@@ -77,27 +75,24 @@ app.get(
   authenticateToken,
   authorizePermission("view_categories"),
   async (req, res) => {
-    const trx = await db.transaction(); // Start transaction
-
     try {
       const { search } = req.query;
 
-
-      const category = await trx("categories")
+      const category = await db("categories")
         .select("*")
         .where("name", "like", `%${search}%`);
 
-        if (!category) {
-          throw new Error("Category not found.");
-        }
-
-      await trx.commit(); // Commit transaction
+      if (!category || category.length === 0) {
+        return res.status(200).json({
+          message: "No matching Category found.",
+        });
+      }
 
       res.status(200).json({
-        message: "Categories searched successfully", category
+        message: "Categories searched successfully",
+        category,
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
       res.status(500).json({ error: error.message });
     }
   }
@@ -107,7 +102,7 @@ app.get(
 app.put(
   "/update-category/:id",
   authenticateToken,
-  authorizePermission("update_categories"),
+  authorizePermission("updatet_categories"),
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
 
@@ -116,11 +111,15 @@ app.put(
       const { name, description } = req.body;
 
       // Update the category
-      const updatedRows = await trx("categories").where({ id }).update({ name, description });
+      const updatedRows = await trx("categories")
+        .where({ id })
+        .update({ name, description });
 
-      if (!updatedRows) {
+      if (!updatedRows || updatedRows.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "Category not found." });
+        return res.status(200).json({
+          message: "No matching Category found.",
+        });
       }
 
       // Retrieve the updated category
@@ -151,8 +150,11 @@ app.delete(
       const { id } = req.params;
 
       category = await trx("categories").where({ id }).first();
-      if (!category) {
-        throw new Error("Category not found.");
+      if (!category || category.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Category found.",
+        });
       }
 
       // Delete category
@@ -161,7 +163,8 @@ app.delete(
       await trx.commit(); // Commit transaction
 
       res.status(200).json({
-        message: "Category deleted successfully", category
+        message: "Category deleted successfully",
+        category,
       });
     } catch (error) {
       await trx.rollback(); // Rollback transaction on error

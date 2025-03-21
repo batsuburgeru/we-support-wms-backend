@@ -19,7 +19,14 @@ app.post(
     const trx = await db.transaction(); // Start transaction
 
     try {
-      const { name, sku, description, category_id, stock_quantity, unit_price } = req.body;
+      const {
+        name,
+        sku,
+        description,
+        category_id,
+        stock_quantity,
+        unit_price,
+      } = req.body;
       const id = uuidv4(); // Generate UUID manually
 
       await trx("products").insert({
@@ -32,11 +39,13 @@ app.post(
         unit_price,
       });
 
+      const product = await trx("products").where({ id }).first();
+
       await trx.commit(); // Commit transaction
 
       res.status(201).json({
         message: "Product created successfully",
-        product: { id, name, sku, description, category_id, stock_quantity, unit_price },
+        product,
       });
     } catch (error) {
       await trx.rollback(); // Rollback on error
@@ -51,23 +60,24 @@ app.get(
   authenticateToken,
   authorizePermission("view_products"),
   async (req, res) => {
-    const trx = await db.transaction(); // Start transaction
-
     try {
       const { search } = req.query;
 
-      const data = await trx("products")
+      const product = await db("products")
         .select("*")
         .where("name", "like", `%${search}%`);
 
-      await trx.commit(); // Commit transaction
+      if (!product || product.length === 0) {
+        return res.status(200).json({
+          message: "No matching Product found.",
+        });
+      }
 
       res.status(200).json({
         message: "Search successful",
-        data,
+        product,
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
       res.status(500).json({ error: error.message });
     }
   }
@@ -79,16 +89,18 @@ app.get(
   authenticateToken,
   authorizePermission("view_products"),
   async (req, res) => {
-    const trx = await db.transaction(); // Start transaction
-
     try {
-      const data = await trx("products").select("*");
+      const products = await db("products").select("*");
 
-      await trx.commit(); // Commit transaction
+      if (!products || products.length === 0) {
+        return res.status(200).json({
+          message: "No matching Product found.",
+        });
+      }
 
       res.status(200).json({
         message: "Products viewed successfully",
-        data,
+        products,
       });
     } catch (error) {
       await trx.rollback(); // Rollback transaction on error
@@ -106,7 +118,14 @@ app.put(
     const trx = await db.transaction(); // Start transaction
     try {
       const { id } = req.params;
-      const { name, sku, description, category_id, stock_quantity, unit_price } = req.body;
+      const {
+        name,
+        sku,
+        description,
+        category_id,
+        stock_quantity,
+        unit_price,
+      } = req.body;
 
       // Update product
       const updatedRows = await trx("products").where({ id }).update({
@@ -120,7 +139,7 @@ app.put(
 
       if (!updatedRows) {
         await trx.rollback();
-        return res.status(404).json({ error: "Product not found." });
+        return { message: "No matching Product found." };
       }
 
       // Retrieve updated product
@@ -149,13 +168,20 @@ app.delete(
     try {
       const { id } = req.params;
 
+      product = await trx("products").where({ id }).first();
+
+      if (!product) {
+        return { message: "No matching Product found." };
+      }
+
       // Delete the product
       await trx("products").where({ id }).del();
 
       await trx.commit(); // Commit transaction
 
       res.status(200).json({
-        message: "Product deleted successfully"
+        message: "Product deleted successfully",
+        product,
       });
     } catch (error) {
       await trx.rollback(); // Rollback on error

@@ -1,4 +1,5 @@
 const express = require("express");
+const uuidv4 = require("uuid").v4;
 
 const app = express.Router();
 app.use(express.json());
@@ -10,6 +11,33 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Create SAP Sync Logs
+app.post(
+  "/create-sap-sync-log",
+  authenticateToken,
+  authorizePermission("create_sap_sync_logs"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { pr_id, transaction_id, status } = req.body;
+      const id = uuidv4();
+
+      await trx("sap_sync_logs").insert({ id, pr_id, transaction_id, status });
+
+      const newLog = await trx("sap_sync_logs").where({ id }).first();
+
+      await trx.commit();
+      res.status(201).json({
+        message: "SAP Sync Log Created successfully",
+        newLog,
+      });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Filter SAP Sync Logs using Status
 app.get(
   "/filter-sap-sync-logs",
@@ -18,11 +46,19 @@ app.get(
   async (req, res) => {
     try {
       const { search } = req.query;
-      const data = await db("sap_sync_logs").select("*").where("status", "like", `%${search}%`);
+      const sapSyncLogs = await db("sap_sync_logs")
+        .select("*")
+        .where("status", "like", `%${search}%`);
+
+      if (!sapSyncLogs || sapSyncLogs.length === 0) {
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
 
       res.status(200).json({
         message: "SAP Sync Logs filtered successfully",
-        data,
+        sapSyncLogs,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -38,11 +74,18 @@ app.get(
   async (req, res) => {
     try {
       const { search } = req.query;
-      const data = await db("sap_sync_logs").select("*").where("id", "like", `%${search}%`);
+      const sapSyncLog = await db("sap_sync_logs")
+        .select("*")
+        .where("id", "like", `%${search}%`);
 
+      if (!sapSyncLog || sapSyncLog.length === 0) {
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
       res.status(200).json({
         message: "Search successful",
-        data,
+        sapSyncLog,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -57,37 +100,18 @@ app.get(
   authorizePermission("view_sap_sync_logs"),
   async (req, res) => {
     try {
-      const data = await db("sap_sync_logs").select("*");
+      const sapSyncLogs = await db("sap_sync_logs").select("*");
+      if (!sapSyncLogs || sapSyncLogs.length === 0) {
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
+
       res.status(200).json({
         message: "SAP Sync Logs Viewed successfully",
-        data,
+        sapSyncLogs,
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Create SAP Sync Logs
-app.post(
-  "/create-sap-sync-log",
-  authenticateToken,
-  authorizePermission("create_sap_sync_logs"),
-  async (req, res) => {
-    const trx = await db.transaction();
-    try {
-      const { pr_id, transaction_id, status } = req.body;
-      const [newLog] = await trx("sap_sync_logs").insert(
-        { pr_id, transaction_id, status },
-        ["*"]
-      );
-      await trx.commit();
-      res.status(201).json({
-        message: "SAP Sync Log Created successfully",
-        data: newLog,
-      });
-    } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
@@ -103,11 +127,26 @@ app.put(
     try {
       const { id } = req.params;
       const { status } = req.body;
-      const [updatedLog] = await trx("sap_sync_logs").where({ id }).update({ status }, ["*"]);
+
+      const updatedRows = await trx("sap_sync_logs")
+        .where({ id })
+        .update({ status }, ["*"]);
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
+
+      const updatedSapSyncLog = await trx("sap_sync_logs")
+        .where({ id })
+        .first();
+
       await trx.commit();
       res.status(200).json({
         message: "SAP Sync Log Updated successfully",
-        data: updatedLog,
+        data: updatedSapSyncLog,
       });
     } catch (error) {
       await trx.rollback();
@@ -115,6 +154,41 @@ app.put(
     }
   }
 );
+
+// Update SAP Sync Log Status
+app.put(
+  "/update-sap-sync-log-status/:id",
+  authenticateToken,
+  authorizePermission("update_sap_sync_logs"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const updatedRows = await trx("sap_sync_logs")
+        .where({ id })
+        .update({ status });
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
+
+      const updatedNote = await trx("sap_sync_logs").where({ id }).first();
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `SAP Sync Log Updated successfully`, updatedNote });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 
 // Delete SAP Sync Logs
 app.delete(
@@ -125,11 +199,21 @@ app.delete(
     const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const deletedLog = await trx("sap_sync_logs").where({ id }).del(["*"]);
+
+      sapSyncLog = await trx("categories").where({ id }).first();
+      if (!sapSyncLog || sapSyncLog.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching SAP Sync Log found.",
+        });
+      }
+
+      await trx("sap_sync_logs").where({ id }).del(["*"]);
+
       await trx.commit();
       res.status(200).json({
         message: "SAP Sync Log Deleted successfully",
-        data: deletedLog,
+        data: sapSyncLog,
       });
     } catch (error) {
       await trx.rollback();
@@ -137,7 +221,6 @@ app.delete(
     }
   }
 );
-
 
 /* // Filter SAP Sync Logs using Status
 app.get(

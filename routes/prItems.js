@@ -19,13 +19,19 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("pr_items")
+      const prItem = await db("pr_items")
         .select("*")
         .where("id", "like", `%${search}%`);
 
+      if (!prItem || prItem.length === 0) {
+        return res.status(200).json({
+          message: "No matching Purchase Request Item found.",
+        });
+      }
+
       res.status(200).json({
         message: `Search successful`,
-        data,
+        prItem,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -40,10 +46,17 @@ app.get(
   authorizePermission("view_pr_items"),
   async (req, res) => {
     try {
-      const data = await db("pr_items").select("*");
+      const prItem = await db("pr_items").select("*");
+
+      if (!prItem || prItem.length === 0) {
+        return res.status(200).json({
+          message: "No matching Purchase Request Item found.",
+        });
+      }
+
       res.status(200).json({
         message: `PR Items Viewed successfully`,
-        data,
+        prItem,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -60,19 +73,21 @@ app.put(
     const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const { pr_id, product_id, quantity, unit_price} = req.body;
+      const { pr_id, product_id, quantity, unit_price } = req.body;
 
       // Update the row
       const updatedRows = await trx("pr_items").where({ id }).update({
         pr_id,
         product_id,
         quantity,
-        unit_price
+        unit_price,
       });
 
-      if (!updatedRows) {
+      if (!updatedRows || updatedRows.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "PR Item not found." });
+        return res.status(200).json({
+          message: "No matching Purchase Request Item found.",
+        });
       }
 
       // Fetch the updated row
@@ -102,11 +117,13 @@ app.delete(
       const { id } = req.params;
 
       // Retrieve the item before deleting
-      const itemToDelete = await trx("pr_items").where({ id }).first();
+      const prItem = await trx("pr_items").where({ id }).first();
 
-      if (!itemToDelete) {
+      if (!prItem || prItem.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "PR Item not found." });
+        return res.status(200).json({
+          message: "No matching Purchase Request Item found.",
+        });
       }
 
       // Delete the row
@@ -116,7 +133,7 @@ app.delete(
 
       res.status(200).json({
         message: `PR Item Deleted successfully`,
-        data: itemToDelete, // Return the deleted row details
+        prItem, // Return the deleted row details
       });
     } catch (error) {
       await trx.rollback();
@@ -124,7 +141,6 @@ app.delete(
     }
   }
 );
-
 
 /* // Search PR Items
 app.get(
@@ -247,7 +263,6 @@ app.delete(
     }
   }
 ); */
-
 
 /* // Search PR Items
 app.get(

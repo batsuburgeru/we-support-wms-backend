@@ -125,18 +125,22 @@ app.get(
   authorizePermission("view_users"),
   async (req, res) => {
     try {
-      const id  = req.user.id;
+      const id = req.user.id;
 
-      const userInfo = await db("users").select("id", "name", "email", "role").where("id", "like", id).first();
+      const userInfo = await db("users")
+        .select("id", "name", "email", "role")
+        .where("id", "like", id)
+        .first();
 
       res.status(201).json({
         message: `User Information retrieved successfully`,
-        userInfo
+        userInfo,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  });
+  }
+);
 
 // Filter Users using Role
 app.get(
@@ -147,17 +151,19 @@ app.get(
     try {
       const { search } = req.query;
 
-      const users = await db("users").select("*").where("role", "like", `%${search}%`);
+      const users = await db("users")
+        .select("*")
+        .where("role", "like", `%${search}%`);
 
       if (!users || users.length === 0) {
         return res.status(200).json({
-          message: "No matching User found."
+          message: "No matching User found.",
         });
       }
 
       res.status(201).json({
         message: `Users filtered successfully`,
-        users
+        users,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -178,11 +184,11 @@ app.get(
         .select("*")
         .where("name", "like", `%${search}%`);
 
-        if (!user || user.length === 0) {
-          return res.status(200).json({
-            message: "No matching User found."
-          });
-        }
+      if (!user || user.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found.",
+        });
+      }
 
       res.status(201).json({
         message: `Search successful`,
@@ -205,7 +211,7 @@ app.get(
 
       if (!users || users.length === 0) {
         return res.status(200).json({
-          message: "No matching User found."
+          message: "No matching User found.",
         });
       }
 
@@ -231,11 +237,13 @@ app.put(
       const { id } = req.params;
       const { name, email, role } = req.body;
 
-      updatedRows = await trx("users").where("id", id).update({ name, email, role });
+      updatedRows = await trx("users")
+        .where("id", id)
+        .update({ name, email, role });
 
       if (!updatedRows) {
         await trx.rollback();
-        return { message: "No matching User found."};
+        return { message: "No matching User found." };
       }
 
       const updatedUser = await trx("users").where({ id }).first();
@@ -243,7 +251,8 @@ app.put(
       await trx.commit();
 
       res.status(201).json({
-        message: `User Updated successfully`, updatedUser
+        message: `User Updated successfully`,
+        updatedUser,
       });
     } catch (error) {
       await trx.rollback();
@@ -265,7 +274,7 @@ app.delete(
 
       user = await trx("users").where({ id }).first();
       if (!user) {
-        return { message: "No matching User found."};
+        return { message: "No matching User found." };
       }
 
       await trx("users").where("id", id).del();

@@ -43,22 +43,20 @@ app.get(
   authenticateToken,
   authorizePermission("view_goods_issue"),
   async (req, res) => {
-    const trx = await db.transaction();
     try {
       const { search } = req.query;
-      const goodsIssue = await trx("goods_issue")
+      const goodsIssue = await db("goods_issue")
         .select("*")
         .where("id", "like", `%${search}%`);
 
-        if (!goodsIssue) {
-          throw new Error("Goods Issue not found.");
-        }
-
-      await trx.commit();
+      if (!goodsIssue || goodsIssue.length === 0) {
+        return res.status(200).json({
+          message: "No matching Goods Issue found.",
+        });
+      }
 
       res.status(200).json({ message: "Search successful", goodsIssue });
     } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
@@ -70,20 +68,20 @@ app.get(
   authenticateToken,
   authorizePermission("view_goods_issue"),
   async (req, res) => {
-    const trx = await db.transaction();
     try {
-      const goodsIssue = await trx("goods_issue").select("*");
+      const goodsIssue = await db("goods_issue").select("*");
 
-      if (categories.length === 0) {
-        throw new Error("No Goods Issues found.");
+      if (!goodsIssue || goodsIssue.length === 0) {
+        return res.status(200).json({
+          message: "No matching Goods Issue found.",
+        });
       }
 
-      await trx.commit();
-
-      res.status(200).json({ 
-        message: "Goods Issue Viewed successfully", goodsIssue });
+      res.status(200).json({
+        message: "Goods Issue Viewed successfully",
+        goodsIssue,
+      });
     } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
@@ -100,24 +98,24 @@ app.put(
       const { id } = req.params;
       const { product_id, issued_to, issued_by } = req.body;
 
-      updatedRows = await trx("goods_issue")
+      const updatedRows = await trx("goods_issue")
         .where({ id })
         .update({ product_id, issued_to, issued_by });
 
-        if (!updatedRows) {
-          await trx.rollback();
-          return res.status(404).json({ error: "Category not found." });
-        }
-        
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Goods Issue found.",
+        });
+      }
+
       const updatedIssue = await trx("goods_issue").where({ id }).first();
 
       await trx.commit();
-      res
-        .status(200)
-        .json({
-          message: `Goods Issue Updated successfully`,
-          updatedIssue,
-        });
+      res.status(200).json({
+        message: `Goods Issue Updated successfully`,
+        updatedIssue,
+      });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
@@ -137,19 +135,20 @@ app.delete(
 
       const goodsIssue = await trx("goods_issue").where({ id }).first();
 
-      if (!goodsIssue) {
-        return res.status(404).json({ error: "Goods Issue not found" });
+      if (!goodsIssue || goodsIssue.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Goods Issue found.",
+        });
       }
 
       await trx("goods_issue").where({ id }).del();
 
       await trx.commit();
-      res
-        .status(200)
-        .json({
-          message: `Goods Issue Deleted successfully`,
-          goodsIssue,
-        });
+      res.status(200).json({
+        message: `Goods Issue Deleted successfully`,
+        goodsIssue,
+      });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });

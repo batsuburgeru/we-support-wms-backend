@@ -11,6 +11,31 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Create Notifications
+app.post(
+  "/create-notification",
+  authenticateToken,
+  authorizePermission("create_notifications"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      id = uuidv4();
+      const { user_id, message, status } = req.body;
+      await trx("notifications").insert({ id, user_id, message, status });
+
+      notification = await trx("notifications").select("*").where("id", id);
+
+      await trx.commit();
+      res
+        .status(201)
+        .json({ message: "Notification Created successfully", notification });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Filter Notifications using Status
 app.get(
   "/filter-notifications",
@@ -19,8 +44,20 @@ app.get(
   async (req, res) => {
     try {
       const { search } = req.query;
-      const data = await db("notifications").select("*").where("status", "like", `%${search}%`);
-      res.status(200).json({ message: "Notifications filtered successfully", data });
+      const notifications = await db("notifications")
+        .select("*")
+        .where("status", "like", `%${search}%`);
+      if (!notifications || notifications.length === 0) {
+        return res.status(200).json({
+          message: "No matching Notifications found.",
+        });
+      }
+      res
+        .status(200)
+        .json({
+          message: "Notifications filtered successfully",
+          notifications,
+        });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -35,8 +72,15 @@ app.get(
   async (req, res) => {
     try {
       const { search } = req.query;
-      const data = await db("notifications").select("*").where("id", "like", `%${search}%`);
-      res.status(200).json({ message: "Search successful", data });
+      const notifications = await db("notifications")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+      if (!notifications || notifications.length === 0) {
+        return res.status(200).json({
+          message: "No matching Notifications found.",
+        });
+      }
+      res.status(200).json({ message: "Search successful", notifications });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -50,32 +94,16 @@ app.get(
   authorizePermission("view_notifications"),
   async (req, res) => {
     try {
-      const data = await db("notifications").select("*");
-      res.status(200).json({ message: "Notifications Viewed successfully", data });
+      const notifications = await db("notifications").select("*");
+      if (!notifications || notifications.length === 0) {
+        return res.status(200).json({
+          message: "No matching Notifications found.",
+        });
+      }
+      res
+        .status(200)
+        .json({ message: "Notifications Viewed successfully", notifications });
     } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Create Notifications
-app.post(
-  "/create-notification",
-  authenticateToken,
-  authorizePermission("create_notifications"),
-  async (req, res) => {
-    const trx = await db.transaction();
-    try {
-      id = uuidv4();
-      const { user_id, message, status } = req.body;
-      await trx("notifications").insert({ id, user_id, message, status });
-        
-      [notification] = await trx("notifications").select("*").where("id", id);
-      
-      await trx.commit();
-      res.status(201).json({ message: "Notification Created successfully", data: notification });
-    } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
@@ -90,20 +118,65 @@ app.put(
     const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const { user_id, message, status } = req.body; 
+      const { user_id, message, status } = req.body;
 
-      const updatedRows = await trx("notifications").where({ id }).update({ user_id, message, status });
-      
-      if (!updatedRows) {
+      const updatedRows = await trx("notifications")
+        .where({ id })
+        .update({ user_id, message, status });
+
+      if (!updatedRows || updatedRows.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "Product not found." });
+        return res.status(200).json({
+          message: "No matching Notification found.",
+        });
       }
 
-      const updatedNotification = await trx("notifications").where({ id }).first();
+      const updatedNotification = await trx("notifications")
+        .where({ id })
+        .first();
 
-      await trx.commit(); 
+      await trx.commit();
 
-      res.status(200).json({ message: "Notification Updated successfully", data: updatedNotification });
+      res
+        .status(200)
+        .json({
+          message: "Notification Updated successfully",
+          data: updatedNotification,
+        });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update Notification Status
+app.put(
+  "/update-notification-status/:id",
+  authenticateToken,
+  authorizePermission("update_notifications"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const updatedRows = await trx("notifications")
+        .where({ id })
+        .update({ status });
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Notification found.",
+        });
+      }
+
+      const updatedNote = await trx("notifications").where({ id }).first();
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `Notification Updated successfully`, updatedNote });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
@@ -123,22 +196,29 @@ app.delete(
 
       // Check if the purchase request exists
       const notification = await trx("notifications").where({ id }).first();
-      if (!notification) {
-        throw new Error("Purchase Request not found.");
+      if (!notification || notification.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Notification found.",
+        });
       }
 
       await trx("notifications").where({ id }).del();
 
       await trx.commit();
 
-      res.status(200).json({ message: "Notification Deleted successfully", data: notification });
+      res
+        .status(200)
+        .json({
+          message: "Notification Deleted successfully",
+          data: notification,
+        });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
-
 
 /* // Filter Notifications using Status
 app.get(

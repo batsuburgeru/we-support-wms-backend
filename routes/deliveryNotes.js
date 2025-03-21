@@ -12,19 +12,30 @@ const {
 } = require("../middleware/authentication.js");
 
 // Create Delivery Note with Transaction
-app.post("/create-delivery-note", authenticateToken, authorizePermission("create_delivery_notes"),
+app.post(
+  "/create-delivery-note",
+  authenticateToken,
+  authorizePermission("create_delivery_notes"),
   async (req, res) => {
     const trx = await db.transaction();
     try {
       id = uuidv4();
       const { pr_id, verified_by, note, status } = req.body;
-      await trx("delivery_notes").insert({ id, pr_id, verified_by, note, status })
+      await trx("delivery_notes").insert({
+        id,
+        pr_id,
+        verified_by,
+        note,
+        status,
+      });
 
       // Retrieve the inserted delivery note
       const deliveryNote = await trx("delivery_notes").where({ id }).first();
 
       await trx.commit();
-      res.status(201).json({ message: `Delivery Note Created successfully`, deliveryNote });
+      res
+        .status(201)
+        .json({ message: `Delivery Note Created successfully`, deliveryNote });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
@@ -33,61 +44,111 @@ app.post("/create-delivery-note", authenticateToken, authorizePermission("create
 );
 
 // Filter Delivery Notes using Status
-app.get("/filter-delivery-notes", authenticateToken, authorizePermission("view_delivery_notes"),
+app.get(
+  "/filter-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
   async (req, res) => {
-    const trx = await db.transaction();
     try {
       const { search } = req.query;
-      const deliveryNotes = await trx("delivery_notes").select("*").where("status", "like", `%${search}%`);
-      
-      if (deliveryNotes.length === 0) {
-        throw new Error("No Delivery Notes found.");
-      }
-      await trx.commit()
+      const deliveryNotes = await db("delivery_notes")
+        .select("*")
+        .where("status", "like", `%${search}%`);
 
-      res.status(200).json({ message: `Delivery Notes filtered successfully`, deeliveryNotes });
+      if (!deliveryNotes || deliveryNotes.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
+
+      res
+        .status(200)
+        .json({
+          message: `Delivery Notes filtered successfully`,
+          deliveryNotes,
+        });
     } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
 
 // Search Delivery Notes
-app.get("/search-delivery-notes", authenticateToken, authorizePermission("view_delivery_notes"),
+app.get(
+  "/search-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
   async (req, res) => {
-    const trx = await db.transaction();
     try {
       const { search } = req.query;
-      const deliveryNote = await trx("delivery_notes").select("*").where("id", "like", `%${search}%`);
-      
-      if (!deliveryNote) {
-        throw new Error("Delivery Note not found.");
-      }
+      const deliveryNote = await db("delivery_notes")
+        .select("*")
+        .where("id", "like", `%${search}%`);
 
-      await trx.commit();
+      if (!deliveryNote || deliveryNote.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
 
       res.status(200).json({ message: `Search successful`, deliveryNote });
     } catch (error) {
-      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
 
 // Read Delivery Notes
-app.get("/view-delivery-notes", authenticateToken, authorizePermission("view_delivery_notes"),
+app.get(
+  "/view-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      const deliveryNotes = await db("delivery_notes").select("*");
+
+      if (!deliveryNotes || deliveryNotes.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
+
+      res
+        .status(200)
+        .json({ message: `Delivery Notes Viewed successfully`, deliveryNotes });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update Delivery Note with Transaction
+app.put(
+  "/update-delivery-note/:id",
+  authenticateToken,
+  authorizePermission("update_delivery_notes"),
   async (req, res) => {
     const trx = await db.transaction();
     try {
-      const deliveryNotes = await trx("delivery_notes").select("*");
-      
-      if (deliveryNotes.length === 0) {
-        throw new Error("No Delivery Notes found.");
-      }
-      await trx.commit();
+      const { id } = req.params;
+      const { pr_id, verified_by, note, status } = req.body;
 
-      res.status(200).json({ message: `Delivery Notes Viewed successfully`, deliveryNotes });
+      const updatedRows = await trx("delivery_notes")
+        .where({ id })
+        .update({ pr_id, verified_by, note, status });
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
+      }
+
+      const updatedNote = await trx("delivery_notes").where({ id }).first();
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `Delivery Note Updated successfully`, updatedNote });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
@@ -95,24 +156,33 @@ app.get("/view-delivery-notes", authenticateToken, authorizePermission("view_del
   }
 );
 
-// Update Delivery Note with Transaction
-app.put("/update-delivery-note/:id", authenticateToken, authorizePermission("update_delivery_notes"),
+// Update Delivery Note Status
+app.put(
+  "/update-delivery-note-status/:id",
+  authenticateToken,
+  authorizePermission("update_delivery_notes"),
   async (req, res) => {
     const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const { pr_id, verified_by, note, status } = req.body;
+      const { status } = req.body;
 
-      const updatedRows = await trx("delivery_notes").where({ id }).update({ pr_id, verified_by, note, status });
-      
-      if (!updatedRows) {
+      const updatedRows = await trx("delivery_notes")
+        .where({ id })
+        .update({ status });
+
+      if (!updatedRows || updatedRows.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "Delivery Note not found." });
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
       }
 
       const updatedNote = await trx("delivery_notes").where({ id }).first();
       await trx.commit();
-      res.status(200).json({ message: `Delivery Note Updated successfully`, updatedNote });
+      res
+        .status(200)
+        .json({ message: `Delivery Note Updated successfully`, updatedNote });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
@@ -121,21 +191,28 @@ app.put("/update-delivery-note/:id", authenticateToken, authorizePermission("upd
 );
 
 // Delete Delivery Note with Transaction
-app.delete("/delete-delivery-note/:id", authenticateToken, authorizePermission("delete_delivery_notes"),
+app.delete(
+  "/delete-delivery-note/:id",
+  authenticateToken,
+  authorizePermission("delete_delivery_notes"),
   async (req, res) => {
     const trx = await db.transaction();
     try {
       const { id } = req.params;
 
       const deliveryNote = await trx("delivery_notes").where({ id }).first();
-      if (!deliveryNote) {
+      if (!deliveryNote || deliveryNote.length === 0) {
         await trx.rollback();
-        return res.status(404).json({ error: "Delivery Note not found" });
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
       }
       await trx("delivery_notes").where({ id }).del();
 
       await trx.commit();
-      res.status(200).json({ message: `Delivery Note Deleted successfully`, deliveryNote });
+      res
+        .status(200)
+        .json({ message: `Delivery Note Deleted successfully`, deliveryNote });
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
