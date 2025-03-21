@@ -7,30 +7,18 @@ const SECRET_KEY = process.env.SECRET_KEY;
 
 // AUTHENTICATION MIDDLEWARE (Reads token from HTTP-only Cookie)
 const authenticateToken = (req, res, next) => {
-    let token = req.cookies.token; // Try getting token from cookies (web)
+    const token = req.cookies.token; // Read token from cookies
 
-    // If not found, try getting it from the Authorization header (mobile)
-    if (!token && req.headers.authorization) {
-        const authHeaderParts = req.headers.authorization.split(" ");
-
-        if (authHeaderParts.length === 2 && authHeaderParts[0] === "Bearer") {
-            token = authHeaderParts[1];
-        }
-    }
-
-    // If no token is provided, reject the request
     if (!token) {
         return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
-    // Verify JWT token
     jwt.verify(token, SECRET_KEY, (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Invalid or expired token' });
         }
-
         req.user = user; // Attach user data to request
-        next();
+        next(); 
     });
 };
 
