@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -75,8 +76,11 @@ app.post(
   authenticateToken,
   authorizePermission("create_users"),
   async (req, res) => {
+    const trx = await db.transaction();
+
     try {
       const { name, email, password, role } = req.body;
+      const id = uuidv4();
 
       const validRoles = [
         "WarehouseMan",
@@ -91,22 +95,48 @@ app.post(
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      const data = await db("users").insert({
+      await db("users").insert({
+        id,
         name,
         email,
         password_hash: hashedPassword,
         role,
       });
 
+      const user = await trx("users").where({ id }).first();
+
+      await trx.commit();
+
       res.status(201).json({
         message: `User Created successfully`,
-        data: data,
+        user,
       });
     } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
+
+// User Info Display
+app.get(
+  "/display-user-info",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const id  = req.user.id;
+
+      const userInfo = await db("users").select("id", "name", "email", "role").where("id", "like", id).first();
+
+      res.status(201).json({
+        message: `User Information retrieved successfully`,
+        userInfo
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
 // Filter Users using Role
 app.get(
@@ -117,11 +147,17 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("users").select("*").where("role", "like", `%${search}%`);
+      const users = await db("users").select("*").where("role", "like", `%${search}%`);
+
+      if (!users || users.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found."
+        });
+      }
 
       res.status(201).json({
         message: `Users filtered successfully`,
-        data: data,
+        users
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -138,13 +174,19 @@ app.get(
     try {
       const { search } = req.query;
 
-      const data = await db("users")
+      const user = await db("users")
         .select("*")
         .where("name", "like", `%${search}%`);
 
+        if (!user || user.length === 0) {
+          return res.status(200).json({
+            message: "No matching User found."
+          });
+        }
+
       res.status(201).json({
         message: `Search successful`,
-        data: data,
+        user,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -159,10 +201,17 @@ app.get(
   authorizePermission("view_users"),
   async (req, res) => {
     try {
-      const data = await db("users").select("*");
+      const users = await db("users").select("*");
+
+      if (!users || users.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found."
+        });
+      }
+
       res.status(201).json({
         message: `Users Viewed successfully`,
-        data: data,
+        users,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -176,16 +225,28 @@ app.put(
   authenticateToken,
   authorizePermission("update_users"),
   async (req, res) => {
+    const trx = await db.transaction();
+
     try {
       const { id } = req.params;
       const { name, email, role } = req.body;
 
-      await db("users").where("id", id).update({ name, email, role });
+      updatedRows = await trx("users").where("id", id).update({ name, email, role });
+
+      if (!updatedRows) {
+        await trx.rollback();
+        return { message: "No matching User found."};
+      }
+
+      const updatedUser = await trx("users").where({ id }).first();
+
+      await trx.commit();
 
       res.status(201).json({
-        message: `User Updated successfully`,
+        message: `User Updated successfully`, updatedUser
       });
     } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
@@ -197,13 +258,23 @@ app.delete(
   authenticateToken,
   authorizePermission("delete_users"),
   async (req, res) => {
+    const trx = await db.transaction();
+
     try {
       const { id } = req.params;
 
-      await db("users").where("id", id).del();
+      user = await trx("users").where({ id }).first();
+      if (!user) {
+        return { message: "No matching User found."};
+      }
 
-      res.status(201).json({ message: "User Deleted successfully" });
+      await trx("users").where("id", id).del();
+
+      await trx.commit();
+
+      res.status(201).json({ message: "User Deleted successfully", user });
     } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
