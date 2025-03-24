@@ -142,8 +142,17 @@ app.get(
     const trx = await db.transaction(); // Start transaction
 
     try {
-      // Fetch all purchase requests
-      const purchaseRequests = await trx("purchase_requests").select("*");
+      // Fetch all purchase requests with creator and approver details
+      const purchaseRequests = await trx("purchase_requests as pr")
+        .select(
+          "pr.*",
+          "uc.name as created_by_name",  
+          "uc.role as created_by_role",  
+          "ua.name as approved_by_name",  
+          "ua.role as approved_by_role"  
+        )
+        .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
+        .leftJoin("users as ua", "pr.approved_by", "ua.id"); // Join with users table for approver
 
       if (!purchaseRequests || purchaseRequests.length === 0) {
         await trx.commit();
@@ -188,7 +197,6 @@ app.get(
   }
 );
 
-
 // Read Specific Purchase Request
 app.get(
   "/search-purchase-request",
@@ -200,9 +208,18 @@ app.get(
     try {
       const { search } = req.query;
 
-      // Fetch the purchase request
-      const purchaseRequest = await trx("purchase_requests")
-        .where("id", search)
+      // Fetch the purchase request along with creator and approver details
+      const purchaseRequest = await trx("purchase_requests as pr")
+        .select(
+          "pr.*",
+          "uc.name as created_by_name",
+          "uc.role as created_by_role",
+          "ua.name as approved_by_name",
+          "ua.role as approved_by_role"
+        )
+        .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
+        .leftJoin("users as ua", "pr.approved_by", "ua.id") // Join with users table for approver
+        .where("pr.id", search)
         .first();
 
       if (!purchaseRequest) {
@@ -232,7 +249,9 @@ app.get(
       res.status(200).json({
         message: `Purchase Request retrieved successfully`,
         data: {
-          purchaseRequest,
+          purchaseRequest: {
+            ...purchaseRequest
+          },
           deliveryNote: deliveryNote || null,
           prItems,
         },
@@ -243,7 +262,6 @@ app.get(
     }
   }
 );
-
 
 // Filter Purchase Requests using Status
 app.get(
