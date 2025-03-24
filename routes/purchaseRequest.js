@@ -162,10 +162,14 @@ app.get(
             .select("*")
             .where("pr_id", prId);
 
-          // Fetch related PR items
-          const prItems = await trx("pr_items")
-            .select("*")
-            .where("pr_id", prId);
+          // Fetch related PR items with product names
+          const prItems = await trx("pr_items as pi")
+            .select(
+              "pi.*",
+              "p.name as product_name" // Fetch product name from products table
+            )
+            .leftJoin("products as p", "pi.product_id", "p.id") // Join with products table
+            .where("pi.pr_id", prId);
 
           return {
             purchaseRequest,
@@ -175,18 +179,15 @@ app.get(
         })
       );
 
-      await trx.commit(); // Commit transaction
-
-      res.status(200).json({
-        message: `All Purchase Requests retrieved successfully`,
-        data: results,
-      });
+      await trx.commit();
+      res.status(200).json(results);
     } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 // Read Specific Purchase Request
 app.get(
