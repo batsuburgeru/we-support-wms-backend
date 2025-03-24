@@ -331,29 +331,19 @@ app.put(
 
     try {
       const { id } = req.params;
-      const { status, approved_by, sap_sync_status, note, items } = req.body;
+      const { note, items } = req.body;
 
       // Fetch existing purchase request
       const existingPurchaseRequest = await trx("purchase_requests")
         .where({ id })
         .first();
+
       if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
         await trx.commit();
         return res.status(200).json({
           message: "No matching Purchase Request found.",
         });
       }
-
-      // Prepare updated data (only update fields that are provided)
-      const updatedPurchaseData = {
-        status: status ?? existingPurchaseRequest.status,
-        approved_by: approved_by ?? existingPurchaseRequest.approved_by,
-        sap_sync_status:
-          sap_sync_status ?? existingPurchaseRequest.sap_sync_status,
-      };
-
-      // Update purchase_requests table
-      await trx("purchase_requests").where({ id }).update(updatedPurchaseData);
 
       // Update delivery_notes only if note is provided
       if (note !== undefined && note !== null) {
