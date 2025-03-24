@@ -380,39 +380,64 @@ app.put(
   authenticateToken,
   authorizePermission("update_purchase_requests"),
   async (req, res) => {
+    const trx = await db.transaction();
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, note } = req.body;
+      const approved_by = req.user.id;
+      const name = req.user.name; // Fix: Correctly getting name from token
 
       if (!status) {
         throw new Error("Status is required.");
       }
 
       // Fetch existing purchase request
-      const existingPurchaseRequest = await db("purchase_requests")
+      const existingPurchaseRequest = await trx("purchase_requests")
         .where({ id })
         .first();
-      if (!existingPurchaseRequest || existingPurchaseRequest.length === 0) {
-        await trx.commit();
-        return res.status(200).json({
+      if (!existingPurchaseRequest) {
+        await trx.rollback();
+        return res.status(404).json({
           message: "No matching Purchase Request found.",
         });
       }
 
-      // Update status in purchase_requests
-      await db("purchase_requests").where({ id }).update({
-        status,
-      });
+      // Update status and approved_by in purchase_requests
+      await trx("purchase_requests").where({ id }).update({ status, approved_by });
+
+      // Append new formatted note if provided
+      if (note !== undefined && note.trim() !== "") {
+        const formattedNote = `${name} ${status} Purchase Request: ${note}`;
+
+        const existingNote = await trx("delivery_notes")
+          .where({ pr_id: id })
+          .select("note")
+          .first();
+
+        const updatedNote = existingNote?.note
+          ? `${existingNote.note}\n${formattedNote}`
+          : formattedNote;
+
+        await trx("delivery_notes")
+          .where({ pr_id: id })
+          .update({ note: updatedNote });
+      }
+
+      await trx.commit();
 
       res.status(200).json({
         message: "Purchase Request status updated successfully",
-        purchaseRequest: { id, status },
+        purchaseRequest: { id, status, approved_by },
+        deliveryNote: note ? { pr_id: id, note } : null,
       });
     } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
+
+
 
 // Delete Purchase Request
 app.delete(
