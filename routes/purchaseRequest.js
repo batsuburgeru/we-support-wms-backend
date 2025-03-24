@@ -205,7 +205,7 @@ app.get(
         .where("id", search)
         .first();
 
-      if (!purchaseRequest || purchaseRequest.length === 0) {
+      if (!purchaseRequest) {
         await trx.commit();
         return res.status(200).json({
           message: "No matching Purchase Request found.",
@@ -218,8 +218,14 @@ app.get(
         .where("pr_id", search)
         .first();
 
-      // Fetch related PR items
-      const prItems = await trx("pr_items").select("*").where("pr_id", search);
+      // Fetch related PR items with product names
+      const prItems = await trx("pr_items as pi")
+        .select(
+          "pi.*",
+          "p.name as product_name" // Include product name from products table
+        )
+        .leftJoin("products as p", "pi.product_id", "p.id") // Join with products table
+        .where("pi.pr_id", search);
 
       await trx.commit(); // Commit transaction
 
@@ -237,6 +243,7 @@ app.get(
     }
   }
 );
+
 
 // Filter Purchase Requests using Status
 app.get(
