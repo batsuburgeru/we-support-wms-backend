@@ -56,12 +56,12 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Create User
 app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
   async (req, res) => {
+    const trx = await db.transaction(); 
     try {
       const { name, email, password, role } = req.body;
 
@@ -77,44 +77,46 @@ app.post(
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      const id = uuidv4(); 
 
-      await db("users").insert({
+      await trx("users").insert({
+        id,  
         name,
         email,
         password_hash: hashedPassword,
         role,
         acc_status: "Unverified",
       });
+
       // Generate email verification token
       const verificationToken = jwt.sign({ id, email }, SECRET_KEY, { expiresIn: "1d" });
       const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
       // Send verification email
       await sendEmail(
-      email,
-      "Verify Your Email",
-      `<p>Click <a href="${verificationLink}">here</a> to verify your email.</p>`
+        email,
+        "Verify Your Email",
+        `<p>Hello,</p>
+         <p>Your verification code is: <strong>${verificationToken}</strong></p>
+         <p>Or, click <a href="${verificationLink}">here</a> to verify your email.</p>
+         <p>If you did not request this, please ignore this email.</p>`
       );
+      
+
+      await trx.commit(); 
 
       res.status(201).json({
-       message: "User registered successfully. Please verify your email.",
-       verificationToken,
+        message: "User registered successfully. Please verify your email.",
+        verificationToken,
       });
 
-      const user = await trx("users").where({ id }).first();
-
-      await trx.commit();
-
-      res.status(201).json({
-        message: `User Created successfully`,
-        user,
-      });
     } catch (error) {
-      await trx.rollback();
+      await trx.rollback(); 
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 app.get("/verify-email", async (req, res) => {
   try {
@@ -154,8 +156,10 @@ app.post("/forgot-password", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Generate a password reset token
+    // Generate a password reset token (JWT)
     const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "1h" });
+
+    // Generate a reset link that the user can use
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     // Send reset email
@@ -171,12 +175,19 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
+
 app.post("/reset-password", async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, newPassword } = req.body; // you can get the token from the request body if you prefer
 
-    // Verify the token
+    // Verify the token to extract the user info
     const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Get the user's data from the database
+    const user = await db("users").where("id", decoded.id).first();
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
     // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
