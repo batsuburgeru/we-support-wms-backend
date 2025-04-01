@@ -1,5 +1,5 @@
 node_modules/
-/db/db.js/wms_db.session.sql
+/db/db.js/nwms_db.session.sql
 /db
 /.env
 /.vscode/

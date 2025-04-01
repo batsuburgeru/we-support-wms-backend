@@ -2,6 +2,8 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const { sendEmail } = require("../middleware/email.js");
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -23,9 +25,13 @@ app.post("/login", async (req, res) => {
 
     // Check if user exists
     const user = await db("users")
-      .select("id", "name", "email", "password_hash", "role")
+      .select("id", "name", "email", "password_hash", "role","acc_status")
       .where("email", email)
       .first();
+
+    if (user.acc_status !== "Verified") {
+      return res.status(403).json({ error: "Please verify your email before logging in." });
+    }  
 
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -77,9 +83,131 @@ app.post(
         email,
         password_hash: hashedPassword,
         role,
+        acc_status: "Unverified",
+      });
+      // Generate email verification token
+      const verificationToken = jwt.sign({ id, email }, SECRET_KEY, { expiresIn: "1d" });
+      const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+      // Send verification email
+      await sendEmail(
+      email,
+      "Verify Your Email",
+      `<p>Click <a href="${verificationLink}">here</a> to verify your email.</p>`
+      );
+
+      res.status(201).json({
+       message: "User registered successfully. Please verify your email.",
+       verificationToken,
       });
 
-      res.status(201).json({ message: "User created successfully" });
+      const user = await trx("users").where({ id }).first();
+
+      await trx.commit();
+
+      res.status(201).json({
+        message: `User Created successfully`,
+        user,
+      });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.get("/verify-email", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer token
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    console.log("Received Token:", token);
+
+    // Verify the token
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Update the user's account status to Verified
+    const updated = await db("users")
+      .where("id", decoded.id)
+      .update({ acc_status: "Verified" });
+
+    if (!updated) {
+      return res.status(400).json({ error: "Invalid or expired token" });
+    }
+
+    res.json({ message: "Email verified successfully. You can now log in." });
+  } catch (error) {
+    console.error("Error:", error.message);
+    res.status(400).json({ error: "Invalid or expired token" });
+  }
+});
+
+app.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Check if the user exists
+    const user = await db("users").where("email", email).first();
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate a password reset token
+    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "1h" });
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    // Send reset email
+    await sendEmail(
+      email,
+      "Reset Your Password",
+      `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
+    );
+
+    res.json({ message: "Password reset email sent" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/reset-password", async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    // Verify the token
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password
+    await db("users").where("id", decoded.id).update({ password_hash: hashedPassword });
+
+    res.json({ message: "Password reset successfully" });
+  } catch (error) {
+    res.status(400).json({ error: "Invalid or expired token" });
+  }
+});
+
+// User Info Display
+app.get(
+  "/display-user-info",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const id = req.user.id;
+
+      const userInfo = await db("users")
+        .select("id", "name", "email", "role")
+        .where("id", "like", id)
+        .first();
+
+      res.status(201).json({
+        message: `User Information retrieved successfully`,
+        userInfo,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
