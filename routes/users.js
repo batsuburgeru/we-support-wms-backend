@@ -240,6 +240,15 @@ app.get(
         user,
       });
     } catch (error) {
+      await trx.rollback(); // Rollback transaction if any error occurs
+
+      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+      if (req.file) {
+        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   }
