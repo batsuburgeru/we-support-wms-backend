@@ -1,8 +1,5 @@
 const express = require("express");
-<<<<<<< HEAD
 const { v4: uuidv4 } = require("uuid");
-=======
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
 
 const app = express.Router();
 app.use(express.json());
@@ -14,7 +11,6 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
-<<<<<<< HEAD
 // Create Purchase Request
 app.post(
   "/create-purchase-request",
@@ -85,8 +81,6 @@ app.post(
   }
 );
 
-=======
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
 // Read Purchase Requests
 app.get(
   "/view-purchase-requests",
@@ -95,7 +89,6 @@ app.get(
   async (req, res) => {
     try {
       const data = await db("purchase_requests").select("*");
-<<<<<<< HEAD
 
       res.status(200).json({
         message: `Purchase Requests retrieved successfully`,
@@ -559,50 +552,6 @@ app.get(
       });
     } catch (error) {
       await trx.rollback(); // Rollback transaction on error
-=======
-      res.status(201).json({
-        message: `Purchase Requests Viewed successfully`,
-        data: data,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Create Purchase Requests
-app.post(
-  "/create-purchase-request",
-  authenticateToken,
-  authorizePermission("create_purchase_requests"),
-  async (req, res) => {
-    try {
-      const {
-        id,
-        created_by,
-        status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
-      } = req.body;
-
-      const data = await db("purchase_requests").insert({
-        id,
-        created_by,
-        status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
-      });
-
-      res.status(201).json({
-        message: `Purchase Request Created successfully`,
-        data: data,
-      });
-    } catch (error) {
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
       res.status(500).json({ error: error.message });
     }
   }
@@ -616,7 +565,6 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-<<<<<<< HEAD
       const { created_by, status, approved_by, sap_sync_status } = req.body;
 
       await db("purchase_requests").where({ id }).update({
@@ -624,32 +572,10 @@ app.put(
         status,
         approved_by,
         sap_sync_status,
-=======
-      const {
-        created_by,
-        status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
-      } = req.body;
-
-      const data = await db("purchase_requests").where({ id }).update({
-        created_by,
-        status,
-        aproved_by,
-        sap_sync_status,
-        created_at,
-        updated_at,
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
       });
 
       res.status(201).json({
         message: `Purchase Request Updated successfully`,
-<<<<<<< HEAD
-=======
-        data: data,
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -666,29 +592,15 @@ app.delete(
     try {
       const { id } = req.params;
 
-<<<<<<< HEAD
       await db("purchase_requests").where({ id }).del();
 
       res.status(201).json({
         message: `Purchase Request Deleted successfully`,
-=======
-      const data = await db("purchase_requests").where({ id }).del();
-
-      res.status(201).json({
-        message: `Purchase Request Deleted successfully`,
-        data: data,
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
-<<<<<<< HEAD
 ); */
 
 module.exports = app;
-=======
-);
-
-module.exports = app;
->>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
