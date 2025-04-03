@@ -1,5 +1,14 @@
 node_modules/
+<<<<<<< HEAD
 /db/
 /.env
 /.vscode/
 /assets/
+=======
+/db/db.js/nwms_db.session.sql
+/db
+/.env
+/.vscode/
+/testEmail.js
+/routes/clients.js
+>>>>>>> 7899c7ef928283b1b6fcd8ea3dd4be6a081f8817
