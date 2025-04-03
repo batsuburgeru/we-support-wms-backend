@@ -1,4 +1,5 @@
 const express = require("express");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express.Router();
 app.use(express.json());
@@ -10,6 +11,93 @@ const {
   authorizePermission,
 } = require("../middleware/authentication.js");
 
+// Create Delivery Note with Transaction
+app.post(
+  "/create-delivery-note",
+  authenticateToken,
+  authorizePermission("create_delivery_notes"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      id = uuidv4();
+      const { pr_id, verified_by, note, status } = req.body;
+      await trx("delivery_notes").insert({
+        id,
+        pr_id,
+        verified_by,
+        note,
+        status,
+      });
+
+      // Retrieve the inserted delivery note
+      const deliveryNote = await trx("delivery_notes").where({ id }).first();
+
+      await trx.commit();
+      res
+        .status(201)
+        .json({ message: `Delivery Note Created successfully`, deliveryNote });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Filter Delivery Notes using Status
+app.get(
+  "/filter-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+      const deliveryNotes = await db("delivery_notes")
+        .select("*")
+        .where("status", "like", `%${search}%`);
+
+      if (!deliveryNotes || deliveryNotes.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
+
+      res
+        .status(200)
+        .json({
+          message: `Delivery Notes filtered successfully`,
+          deliveryNotes,
+        });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Search Delivery Notes
+app.get(
+  "/search-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+      const deliveryNote = await db("delivery_notes")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      if (!deliveryNote || deliveryNote.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
+
+      res.status(200).json({ message: `Search successful`, deliveryNote });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 // Read Delivery Notes
 app.get(
   "/view-delivery-notes",
@@ -17,10 +105,172 @@ app.get(
   authorizePermission("view_delivery_notes"),
   async (req, res) => {
     try {
-      const data = await db("delivery_notes").select("*");
+      const deliveryNotes = await db("delivery_notes").select("*");
+
+      if (!deliveryNotes || deliveryNotes.length === 0) {
+        return res.status(200).json({
+          message: "No matching Delivery Notes found.",
+        });
+      }
+
+      res
+        .status(200)
+        .json({ message: `Delivery Notes Viewed successfully`, deliveryNotes });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update Delivery Note with Transaction
+app.put(
+  "/update-delivery-note/:id",
+  authenticateToken,
+  authorizePermission("update_delivery_notes"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { id } = req.params;
+      const { pr_id, verified_by, note, status } = req.body;
+
+      const updatedRows = await trx("delivery_notes")
+        .where({ id })
+        .update({ pr_id, verified_by, note, status });
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
+      }
+
+      const updatedNote = await trx("delivery_notes").where({ id }).first();
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `Delivery Note Updated successfully`, updatedNote });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update Delivery Note Status
+app.put(
+  "/update-delivery-note-status/:id",
+  authenticateToken,
+  authorizePermission("update_delivery_notes"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const updatedRows = await trx("delivery_notes")
+        .where({ id })
+        .update({ status });
+
+      if (!updatedRows || updatedRows.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
+      }
+
+      const updatedNote = await trx("delivery_notes").where({ id }).first();
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `Delivery Note Updated successfully`, updatedNote });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Delete Delivery Note with Transaction
+app.delete(
+  "/delete-delivery-note/:id",
+  authenticateToken,
+  authorizePermission("delete_delivery_notes"),
+  async (req, res) => {
+    const trx = await db.transaction();
+    try {
+      const { id } = req.params;
+
+      const deliveryNote = await trx("delivery_notes").where({ id }).first();
+      if (!deliveryNote || deliveryNote.length === 0) {
+        await trx.rollback();
+        return res.status(200).json({
+          message: "No matching Delivery Note found.",
+        });
+      }
+      await trx("delivery_notes").where({ id }).del();
+
+      await trx.commit();
+      res
+        .status(200)
+        .json({ message: `Delivery Note Deleted successfully`, deliveryNote });
+    } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+/* // Filter Delivery Notes using Status
+app.get("/filter-delivery-notes", authenticateToken, authorizePermission("view_delivery_notes"),
+   async (req, res) => {
+  try {
+    const { search } = req.query;
+
+    data = await db("delivery_notes").select("*").where("status", "like", `%${search}%`);
+
+    res.status(201).json({
+      message: `Delivery Notes filtered successfully`,
+      data: data,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search Delivery Notes
+app.get(
+  "/search-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      data = await db("delivery_notes")
+        .select("*")
+        .where("id", "like", `%${search}%`);
+
+      res.status(201).json({
+        message: `Search successful`,
+        data: data,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read Delivery Notes
+app.get(
+  "/view-delivery-notes",
+  authenticateToken,
+  authorizePermission("view_delivery_notes"),
+  async (req, res) => {
+    try {
+      data = await db("delivery_notes").select("*");
       res.status(201).json({
         message: `Delivery Notes Viewed successfully`,
-        data,
+        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -35,19 +285,16 @@ app.post(
   authorizePermission("create_delivery_notes"),
   async (req, res) => {
     try {
-      const { id, pr_id, verified_by, verified_at, status } = req.body;
+      const { pr_id, verified_by, status } = req.body;
 
-      const data = await db("delivery_notes").insert({
-        id,
+      await db("delivery_notes").insert({
         pr_id,
         verified_by,
-        verified_at,
         status,
       });
 
       res.status(201).json({
         message: `Delivery Note Created successfully`,
-        data: data,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -63,18 +310,17 @@ app.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { pr_id, verified_by, verified_at, status } = req.body;
+      const { pr_id, verified_by, status } = req.body;
 
-      data = await db("delivery_notes").where({ id }).update({
+      await db("delivery_notes").where({ id }).update({
+        id,
         pr_id,
         verified_by,
-        verified_at,
         status,
       });
 
       res.status(201).json({
-        message: `Delivery Note ${id} Updated successfully`,
-        data: data,
+        message: `Delivery Note Updated successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -94,12 +340,12 @@ app.delete(
       await db("delivery_notes").where({ id }).del();
 
       res.status(201).json({
-        message: `Delivery Note ${id} Deleted successfully`,
+        message: `Delivery Note Deleted successfully`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
-);
+); */
 
 module.exports = app;

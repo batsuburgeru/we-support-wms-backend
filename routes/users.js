@@ -2,6 +2,11 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const uploadImage = require("../middleware/uploadImage"); // Adjust the path as needed
+const fs = require("fs");
+const path = require("path");
+
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -21,14 +26,19 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
+    // Check if user exists and fetch acc_status
     const user = await db("users")
-      .select("id", "name", "email", "password_hash", "role")
+      .select("id", "name", "email", "password_hash", "role", "acc_status")
       .where("email", email)
       .first();
 
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Check if the account is verified
+    if (user.acc_status !== "Verified") {
+      return res.status(403).json({ error: "Account not verified. Please verify your email before logging in." });
     }
 
     // Compare passwords
@@ -40,9 +50,15 @@ app.post("/login", async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { id: user.id, name: user.name, email: user.email, role: user.role },
-      SECRET_KEY,
-      { expiresIn: "1h" }
+      SECRET_KEY
     );
+
+    // Set token as an HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true, // Prevents JavaScript access (More Secure)
+      secure: process.env.NODE_ENV === "production", // Enables Secure flag in production (HTTPS required)
+      sameSite: "Strict", // Prevents CSRF attacks
+    });
 
     res.json({ message: "Login successful", token });
   } catch (error) {
@@ -50,8 +66,18 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Create User
-aapp.post(
+// Logout Users
+app.post("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+  });
+
+  res.json({ message: "Logged out successfully" });
+});
+
+app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
@@ -137,15 +163,116 @@ aapp.post(
   }
 );
 
-// Get Users
+// User Info Display
 app.get(
-  "/users",
+  "/display-user-info",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const id = req.user.id;
+
+      const userInfo = await db("users")
+        .select("id", "name", "email", "role")
+        .where("id", "like", id)
+        .first();
+
+      res.status(201).json({
+        message: `User Information retrieved successfully`,
+        userInfo,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Filter Users using Role
+app.get(
+  "/filter-users",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const users = await db("users")
+        .select("*")
+        .where("role", "like", `%${search}%`);
+
+      if (!users || users.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found.",
+        });
+      }
+
+      res.status(201).json({
+        message: `Users filtered successfully`,
+        users,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Search Users
+app.get(
+  "/search-users",
+  authenticateToken,
+  authorizePermission("view_users"),
+  async (req, res) => {
+    try {
+      const { search } = req.query;
+
+      const user = await db("users")
+        .select("*")
+        .where("name", "like", `%${search}%`);
+
+      if (!user || user.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found.",
+        });
+      }
+
+      res.status(201).json({
+        message: `Search successful`,
+        user,
+      });
+    } catch (error) {
+      await trx.rollback(); // Rollback transaction if any error occurs
+
+      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+      if (req.file) {
+        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Read Users
+app.get(
+  "/view-users",
   authenticateToken,
   authorizePermission("view_users"),
   async (req, res) => {
     try {
       const users = await db("users").select("*");
-      res.json(users);
+
+      if (!users || users.length === 0) {
+        return res.status(200).json({
+          message: "No matching User found.",
+        });
+      }
+
+      res.status(201).json({
+        message: `Users Viewed successfully`,
+        users,
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -158,16 +285,59 @@ app.put(
   authenticateToken,
   authorizePermission("update_users"),
   async (req, res) => {
+    const trx = await db.transaction();
+
     try {
       const { id } = req.params;
       const { name, email, role } = req.body;
 
-      await db("users")
+      updatedRows = await trx("users")
         .where("id", id)
         .update({ name, email, role });
 
-      res.json({ message: "User updated successfully" });
+      if (!updatedRows) {
+        await trx.rollback();
+        return { message: "No matching User found." };
+      }
+
+      const updatedUser = await trx("users").where({ id }).first();
+
+      await trx.commit();
+
+      res.status(201).json({
+        message: `User Updated successfully`,
+        updatedUser,
+      });
     } catch (error) {
+      await trx.rollback();
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Delete User
+app.delete(
+  "/delete-user/:id",
+  authenticateToken,
+  authorizePermission("delete_users"),
+  async (req, res) => {
+    const trx = await db.transaction();
+
+    try {
+      const { id } = req.params;
+
+      user = await trx("users").where({ id }).first();
+      if (!user) {
+        return { message: "No matching User found." };
+      }
+
+      await trx("users").where("id", id).del();
+
+      await trx.commit();
+
+      res.status(201).json({ message: "User Deleted successfully", user });
+    } catch (error) {
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }

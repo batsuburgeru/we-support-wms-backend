@@ -5,28 +5,24 @@ const dotenv = require('dotenv');
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY; 
 
-// AUTHETICATION MIDDLEWARE
+// AUTHENTICATION MIDDLEWARE (Reads token from HTTP-only Cookie)
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Access denied. No token provided.' });
-    }
+    const token = req.cookies.token; // Read token from cookies
 
-    const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader;
     if (!token) {
-        return res.status(401).json({ error: 'Invalid token format' });
+        return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
     jwt.verify(token, SECRET_KEY, (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Invalid or expired token' });
         }
-        req.user = user; 
+        req.user = user; // Attach user data to request
         next(); 
     });
 };
 
-// ROLE PERMISSION
+// ROLE PERMISSION MIDDLEWARE
 const authorizePermission = (...requiredPermissions) => {
     return async (req, res, next) => {
         try {
@@ -47,14 +43,13 @@ const authorizePermission = (...requiredPermissions) => {
             
             let permissions = roleData.permissions;
             if (typeof permissions === 'string') {
-                 try {
+                try {
                     permissions = JSON.parse(permissions);
-                    } catch (jsonError) {
-                        console.error("Error parsing permissions JSON:", jsonError);
-                        return res.status(500).json({ error: "Invalid permissions format in database" });
-                    }
+                } catch (jsonError) {
+                    console.error("Error parsing permissions JSON:", jsonError);
+                    return res.status(500).json({ error: "Invalid permissions format in database" });
                 }
-
+            }
 
             console.log("Required Permissions:", requiredPermissions);
             console.log("User Has Permissions:", permissions);
