@@ -8,75 +8,11 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-ALTER TABLE users MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-
 CREATE TABLE roles_permissions (
     id CHAR(36) PRIMARY KEY,
     role_name VARCHAR(255) UNIQUE NOT NULL,
     permissions JSON NOT NULL
 );
-
-INSERT INTO roles_permissions (id, role_name, permissions) VALUES
-(UUID(), 'Admin', JSON_ARRAY(
-    'create_category', 'view_categories', 'edit_category', 'delete_category',
-    'create_product', 'view_products', 'edit_product', 'delete_product',
-    'create_purchase_request', 'view_purchase_requests', 'edit_purchase_request', 'delete_purchase_request',
-    'create_stock_transaction', 'view_stock_transactions', 'edit_stock_transaction', 'delete_stock_transaction',
-    'create_goods_receipt', 'view_goods_receipts', 'edit_goods_receipt', 'delete_goods_receipt',
-    'create_goods_issue', 'view_goods_issue', 'edit_goods_issue', 'delete_goods_issue',
-    'create_delivery_note', 'view_delivery_notes', 'edit_delivery_note', 'delete_delivery_note',
-    'create_notification', 'view_notifications', 'edit_notification', 'delete_notification',
-    'create__sap_sync_log', 'view_sap_sync_logs', 'edit_sap_sync_log', 'delete_sap_sync_log',
-)),
-
-(UUID(), 'Supervisor', JSON_ARRAY(
-    'create_category', 'view_categories', 'edit_category', 'delete_category',
-    'create_product', 'view_products', 'edit_product', 'delete_product',
-    'create_purchase_request', 'view_purchase_requests', 'edit_purchase_request', 'delete_purchase_request',
-    'create_stock_transaction', 'view_stock_transactions', 'edit_stock_transaction', 'delete_stock_transaction',
-    'create_goods_receipt', 'view_goods_receipts', 'edit_goods_receipt', 'delete_goods_receipt',
-    'create_goods_issue', 'view_goods_issue', 'edit_goods_issue', 'delete_goods_issue',
-    'create_delivery_note', 'view_delivery_notes', 'edit_delivery_note', 'delete_delivery_note',
-    'create_notification', 'view_notifications', 'edit_notification', 'delete_notification',
-    'create__sap_sync_log', 'view_sap_sync_logs', 'edit_sap_sync_log', 'delete_sap_sync_log',
-)),
-
-(UUID(), 'Guard', JSON_ARRAY(
-    'view_categories',
-    'view_products',
-    'view_purchase_requests',
-    'view_stock_transactions',
-    'view_goods_receipts',
-    'view_goods_issue',
-    'view_delivery_notes',
-    'view_notifications',
-    'view_sap_sync_logs'
-)),
-(UUID(), 'PlantOfficer', JSON_ARRAY(
-    'view_categories',
-    'view_products',
-    'view_purchase_requests',
-    'view_stock_transactions',
-    'view_goods_receipts',
-    'view_goods_issue',
-    'view_delivery_notes',
-    'view_notifications',
-    'view_sap_sync_logs'
-)),
-(UUID(), 'WarehouseMan', JSON_ARRAY(
-    'create_purchase_request',
-    'view_categories',
-    'view_products',
-    'view_purchase_requests',
-    'view_stock_transactions',
-    'view_goods_receipts',
-    'view_goods_issue',
-    'view_delivery_notes',
-    'view_notifications',
-    'view_sap_sync_logs'
-));
-
-
 
 CREATE TABLE categories (
     id CHAR(36) PRIMARY KEY,
@@ -178,3 +114,65 @@ CREATE TABLE sap_sync_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (pr_id) REFERENCES purchase_requests(id) ON DELETE SET NULL
 );
+
+
+/* INSERT VALUES ROLES_PERMISSIONS*/
+INSERT INTO roles_permissions (id, role_name, permissions) VALUES
+(UUID(), 'Admin', JSON_ARRAY(
+  'create_users', 'view_users', 'edit_users', 'delete_users', 
+  'create_categories', 'view_categories', 'edit_categories', 'delete_categories', 
+  'create_products', 'view_products', 'edit_products', 'delete_products', 
+  'create_purchase_requests', 'view_purchase_requests', 'edit_purchase_requests', 'delete_purchase_requests', 
+  'create_stock_transactions', 'view_stock_transactions', 'edit_stock_transactions', 'delete_stock_transactions', 
+  'create_goods_receipts', 'view_goods_receipts', 'edit_goods_receipts', 'delete_goods_receipts', 
+  'create_goods_issue', 'view_goods_issue', 'edit_goods_issue', 'delete_goods_issue', 
+  'create_delivery_notes', 'view_delivery_notes', 'edit_delivery_notes', 'delete_delivery_notes', 
+  'create_notifications', 'view_notifications', 'edit_notifications', 'delete_notifications', 
+  'sync_sap'
+)),
+(UUID(), 'Supervisor', JSON_ARRAY(
+  "view_products", "view_categories", "view_purchase_requests", 
+  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
+  "view_goods_issue", "view_delivery_notes", "view_notifications"
+)),
+(UUID(), 'Guard', JSON_ARRAY(
+  "view_products", "view_categories", "view_purchase_requests", 
+  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
+  "view_goods_issue", "view_delivery_notes", "view_notifications"
+)),
+(UUID(), 'PlantOfficer', JSON_ARRAY(
+  "view_products", "view_categories", "create_purchase_requests", 
+  "view_purchase_requests", "edit_purchase_requests", "view_pr_items", 
+  "create_stock_transactions", "view_stock_transactions", "view_goods_receipts", 
+  "view_goods_issue", "view_delivery_notes", "view_notifications"
+)),
+(UUID(), 'WarehouseMan', JSON_ARRAY(
+  "view_products", "view_categories", "view_purchase_requests", 
+  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
+  "view_goods_issue", "view_delivery_notes", "view_notifications"
+));
+
+/* ALTER IN USERS*/
+ALTER TABLE users MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN ROLES_PERMISSIONS*/
+ALTER TABLE roles_permissions MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN CATEGORIES*/
+ALTER TABLE categories MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN PRODUCTS*/
+ALTER TABLE products MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN PURCHASE_REQUESTS*/
+ALTER TABLE purchase_requests MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN PR_ITEMS*/
+ALTER TABLE pr_items MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN STOCK_TRANSACTIONS*/
+ALTER TABLE stock_transactions MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN GOODS_RECEIPTS*/
+ALTER TABLE goods_receipts MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN GOODS_ISSUE*/
+ALTER TABLE goods_issue MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN DELIVERY_NOTES*/
+ALTER TABLE delivery_notes MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN NOTIFICATIONS*/
+ALTER TABLE notifications MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+/* ALTER IN SAP_SYNC_LOGS*/
+ALTER TABLE sap_sync_logs MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
