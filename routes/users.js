@@ -3,6 +3,10 @@ const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
+const uploadImage = require("../middleware/uploadImage"); // Adjust the path as needed
+const fs = require("fs");
+const path = require("path");
+
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -22,14 +26,19 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
+    // Check if user exists and fetch acc_status
     const user = await db("users")
-      .select("id", "name", "email", "password_hash", "role")
+      .select("id", "name", "email", "password_hash", "role", "acc_status")
       .where("email", email)
       .first();
 
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Check if the account is verified
+    if (user.acc_status !== "Verified") {
+      return res.status(403).json({ error: "Account not verified. Please verify your email before logging in." });
     }
 
     // Compare passwords
@@ -41,8 +50,7 @@ app.post("/login", async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { id: user.id, name: user.name, email: user.email, role: user.role },
-      SECRET_KEY,
-      { expiresIn: "1h" }
+      SECRET_KEY
     );
 
     // Set token as an HTTP-only cookie
@@ -50,7 +58,6 @@ app.post("/login", async (req, res) => {
       httpOnly: true, // Prevents JavaScript access (More Secure)
       secure: process.env.NODE_ENV === "production", // Enables Secure flag in production (HTTPS required)
       sameSite: "Strict", // Prevents CSRF attacks
-      maxAge: 60 * 60 * 1000, // Expires in 1 hour
     });
 
     res.json({ message: "Login successful", token });
@@ -70,16 +77,17 @@ app.post("/logout", (req, res) => {
   res.json({ message: "Logged out successfully" });
 });
 
-// Create User
 app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
+  uploadImage('profilePictures'), // Middleware to process image uploads
   async (req, res) => {
-    const trx = await db.transaction();
+    const trx = await db.transaction(); // Start transaction
 
     try {
-      const { name, email, password, role } = req.body;
+      const { name, email, password, role, org_name, comp_add, contact_num,} = req.body;
+      let { image } = req.body; 
       const id = uuidv4();
 
       const validRoles = [
@@ -88,31 +96,68 @@ app.post(
         "PlantOfficer",
         "Guard",
         "Admin",
+        "Client"
       ];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role provided" });
       }
 
+      const existingUser = await trx("users").where({ email }).first();
+      if (existingUser) {
+        throw new Error("Email already exists"); // Trigger rollback
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      await db("users").insert({
-        id,
+      // Determine profile picture path
+      if (req.file) {
+        image = `/assets/profilePictures/${req.file.filename}`; // Save only relative path in DB
+      } else if (!image) {
+        image = null; // No file uploaded, and no path provided
+      }
+
+      // ✅ Use `trx` for database operations
+      await trx("users").insert({
+        id: id, // Generate a new UUID for the user
         name,
         email,
         password_hash: hashedPassword,
         role,
+        img_url: image, // Store image path (or null if none)
       });
 
+      let client = null;
+      if (role === "Client") {
+        await trx("clients").insert({
+          client_id : id,
+          org_name,
+          comp_add,
+          contact_num,
+        });
+        client = await trx("clients").where({ client_id: id }).first();
+      }
+
+      // ✅ Use `trx` to fetch the user within the same transaction
       const user = await trx("users").where({ id }).first();
 
-      await trx.commit();
+      await trx.commit(); // Commit transaction
 
-      res.status(201).json({
-        message: `User Created successfully`,
-        user,
-      });
+      if (role === "Client") {
+        res.status(201).json({ message: "User Created successfully", user, client });
+      } else {
+        res.status(201).json({ message: "User Created successfully", user });
+      }
+
     } catch (error) {
-      await trx.rollback();
+      await trx.rollback(); // Rollback transaction if any error occurs
+
+      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+      if (req.file) {
+        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   }
