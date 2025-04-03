@@ -55,9 +55,14 @@ app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
+  uploadImage('profilePictures'), // Middleware to process image uploads
   async (req, res) => {
+    const trx = await db.transaction(); // Start transaction
+
     try {
-      const { name, email, password, role } = req.body;
+      const { name, email, password, role, org_name, comp_add, contact_num,} = req.body;
+      let { image } = req.body; 
+      const id = uuidv4();
 
       const validRoles = [
         "WarehouseMan",
@@ -65,22 +70,68 @@ app.post(
         "PlantOfficer",
         "Guard",
         "Admin",
+        "Client"
       ];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role provided" });
       }
 
+      const existingUser = await trx("users").where({ email }).first();
+      if (existingUser) {
+        throw new Error("Email already exists"); // Trigger rollback
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      await db("users").insert({
+      // Determine profile picture path
+      if (req.file) {
+        image = `/assets/profilePictures/${req.file.filename}`; // Save only relative path in DB
+      } else if (!image) {
+        image = null; // No file uploaded, and no path provided
+      }
+
+      // ✅ Use `trx` for database operations
+      await trx("users").insert({
+        id: id, // Generate a new UUID for the user
         name,
         email,
         password_hash: hashedPassword,
         role,
+        img_url: image, // Store image path (or null if none)
       });
 
-      res.status(201).json({ message: "User created successfully" });
+      let client = null;
+      if (role === "Client") {
+        await trx("clients").insert({
+          client_id : id,
+          org_name,
+          comp_add,
+          contact_num,
+        });
+        client = await trx("clients").where({ client_id: id }).first();
+      }
+
+      // ✅ Use `trx` to fetch the user within the same transaction
+      const user = await trx("users").where({ id }).first();
+
+      await trx.commit(); // Commit transaction
+
+      if (role === "Client") {
+        res.status(201).json({ message: "User Created successfully", user, client });
+      } else {
+        res.status(201).json({ message: "User Created successfully", user });
+      }
+
     } catch (error) {
+      await trx.rollback(); // Rollback transaction if any error occurs
+
+      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+      if (req.file) {
+        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   }
