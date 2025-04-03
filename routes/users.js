@@ -71,6 +71,7 @@ app.post(
         "PlantOfficer",
         "Guard",
         "Admin",
+        "Client",
       ];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role provided" });
@@ -119,6 +120,7 @@ app.post(
 
 
 app.get("/verify-email", async (req, res) => {
+  const trx = await db.transaction(); 
   try {
     const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer token
     if (!token) {
@@ -130,8 +132,8 @@ app.get("/verify-email", async (req, res) => {
     // Verify the token
     const decoded = jwt.verify(token, SECRET_KEY);
 
-    // Update the user's account status to Verified
-    const updated = await db("users")
+    // Update the user's account status to Verified inside the transaction
+    const updated = await trx("users")
       .where("id", decoded.id)
       .update({ acc_status: "Verified" });
 
@@ -139,19 +141,24 @@ app.get("/verify-email", async (req, res) => {
       return res.status(400).json({ error: "Invalid or expired token" });
     }
 
+    await trx.commit();
+
     res.json({ message: "Email verified successfully. You can now log in." });
   } catch (error) {
+    await trx.rollback();
     console.error("Error:", error.message);
     res.status(400).json({ error: "Invalid or expired token" });
   }
 });
 
+
 app.post("/forgot-password", async (req, res) => {
+  const trx = await db.transaction();
   try {
     const { email } = req.body;
 
     // Check if the user exists
-    const user = await db("users").where("email", email).first();
+    const user = await trx("users").where("email", email).first();
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -169,22 +176,25 @@ app.post("/forgot-password", async (req, res) => {
       `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
     );
 
+    await trx.commit();
+
     res.json({ message: "Password reset email sent" });
   } catch (error) {
+    await trx.rollback();
     res.status(500).json({ error: error.message });
   }
 });
 
-
 app.post("/reset-password", async (req, res) => {
+  const trx = await db.transaction();
   try {
-    const { token, newPassword } = req.body; // you can get the token from the request body if you prefer
+    const { token, newPassword } = req.body;
 
     // Verify the token to extract the user info
     const decoded = jwt.verify(token, SECRET_KEY);
 
     // Get the user's data from the database
-    const user = await db("users").where("id", decoded.id).first();
+    const user = await trx("users").where("id", decoded.id).first();  
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -193,10 +203,14 @@ app.post("/reset-password", async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update the user's password
-    await db("users").where("id", decoded.id).update({ password_hash: hashedPassword });
+    await trx("users").where("id", decoded.id).update({ password_hash: hashedPassword });
+
+    // Commit the transaction
+    await trx.commit();
 
     res.json({ message: "Password reset successfully" });
   } catch (error) {
+    await trx.rollback();  
     res.status(400).json({ error: "Invalid or expired token" });
   }
 });
