@@ -86,14 +86,12 @@ app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
-  uploadImage("profilePictures"), // Middleware to process image uploads
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
 
     try {
       const { name, email, password, role, org_name, comp_add, contact_num } =
         req.body;
-      let { image } = req.body;
       const id = uuidv4();
 
       const validRoles = [
@@ -104,6 +102,8 @@ app.post(
         "Admin",
         "Client",
       ];
+      console.log(role);
+      console.log(req.body);
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role provided" });
       }
@@ -115,21 +115,13 @@ app.post(
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Determine profile picture path
-      if (req.file) {
-        image = `/assets/profilePictures/${req.file.filename}`; // Save only relative path in DB
-      } else if (!image) {
-        image = null; // No file uploaded, and no path provided
-      }
-
       // ✅ Use `trx` for database operations
       await trx("users").insert({
         id: id, // Generate a new UUID for the user
         name,
         email,
         password_hash: hashedPassword,
-        role,
-        img_url: image, // Store image path (or null if none)
+        role
       });
 
       let client = null;
@@ -150,7 +142,7 @@ app.post(
       const verificationToken = jwt.sign({ id, email }, SECRET_KEY, {
         expiresIn: "1h",
       });
-      const verifyLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+      const verifyLink = `${process.env.BACKEND_URL}/users/verify-email?token=${verificationToken}`;
       await sendEmail(
         email,
         "Verify Your Email",
@@ -170,20 +162,6 @@ app.post(
       }
     } catch (error) {
       await trx.rollback(); // Rollback transaction if any error occurs
-
-      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
-      if (req.file) {
-        const filePath = path.join(
-          __dirname,
-          "..",
-          "assets",
-          "profilePictures",
-          req.file.filename
-        );
-        fs.unlink(filePath, (err) => {
-          if (err) console.error("Failed to delete file:", err);
-        });
-      }
       res.status(500).json({ error: error.message });
     }
   }
@@ -192,15 +170,23 @@ app.post(
 app.get("/verify-email", async (req, res) => {
   const trx = await db.transaction();
   try {
-    const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer token
+    const token = req.query.token;
     if (!token) {
       return res.status(400).json({ error: "Token is required" });
     }
 
     console.log("Received Token:", token);
 
-    // Verify the token
-    const decoded = jwt.verify(token, SECRET_KEY);
+    // Verify the token and handle expiration
+    let decoded;
+    try {
+      decoded = jwt.verify(token, SECRET_KEY);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(400).json({ error: "Token has expired" });
+      }
+      return res.status(400).json({ error: "Invalid token" });
+    }
 
     // Update the user's account status to Verified inside the transaction
     const updated = await trx("users")
@@ -238,7 +224,7 @@ app.post("/forgot-password", async (req, res) => {
     });
 
     // Generate a reset link that the user can use
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.BACKEND_URL}/users/reset-password?token=${resetToken}`;
 
     // Send reset email
     await sendEmail(
@@ -259,7 +245,8 @@ app.post("/forgot-password", async (req, res) => {
 app.post("/reset-password", async (req, res) => {
   const trx = await db.transaction();
   try {
-    const { token, newPassword } = req.body;
+    const { token } = req.query.token; 
+    const { newPassword } = req.body;
 
     // Verify the token to extract the user info
     const decoded = jwt.verify(token, SECRET_KEY);
@@ -297,12 +284,26 @@ app.get(
     try {
       const id = req.user.id;
 
+      // Fetch user data with client-specific info if role is 'Client'
       const userInfo = await db("users")
-        .select("id", "name", "email", "role")
-        .where("id", "like", id)
+        .leftJoin("clients", "users.id", "clients.client_id") // Left join with clients table
+        .select(
+          "users.id",
+          "users.name",
+          "users.email",
+          "users.role",
+          "clients.org_name",     // Client-specific data
+          "clients.comp_add",     // Client-specific data
+          "clients.contact_num"   // Client-specific data
+        )
+        .where("users.id", "like", id)
         .first();
 
-      res.status(201).json({
+      if (!userInfo) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.status(200).json({
         message: `User Information retrieved successfully`,
         userInfo,
       });
@@ -311,6 +312,7 @@ app.get(
     }
   }
 );
+
 
 // Filter Users using Role
 app.get(
@@ -321,9 +323,11 @@ app.get(
     try {
       const { search } = req.query;
 
+      // Join users with clients table for 'Client' role
       const users = await db("users")
-        .select("*")
-        .where("role", "like", `%${search}%`);
+        .leftJoin("clients", "users.id", "clients.client_id") // Left join with clients table
+        .select("users.*", "clients.org_name", "clients.comp_add", "clients.contact_num") // Select user and client data
+        .where("users.role", "like", `%${search}%`);
 
       if (!users || users.length === 0) {
         return res.status(200).json({
@@ -331,9 +335,32 @@ app.get(
         });
       }
 
-      res.status(201).json({
+      // Organize the response to differentiate client data
+      const usersWithClientData = users.map(user => {
+        if (user.role === 'Client') {
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            org_name: user.org_name, // Client-specific data
+            comp_add: user.comp_add, // Client-specific data
+            contact_num: user.contact_num, // Client-specific data
+            img_url: user.img_url, // Include profile image if available
+          };
+        }
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          img_url: user.img_url, // Include profile image if available
+        };
+      });
+
+      res.status(200).json({
         message: `Users filtered successfully`,
-        users,
+        users: usersWithClientData,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -350,36 +377,46 @@ app.get(
     try {
       const { search } = req.query;
 
-      const user = await db("users")
-        .select("*")
-        .where("name", "like", `%${search}%`);
+      // Join users with clients table for 'Client' role
+      const users = await db("users")
+        .leftJoin("clients", "users.id", "clients.client_id") // Left join with clients table
+        .select("users.*", "clients.org_name", "clients.comp_add", "clients.contact_num") // Select user and client data
+        .where("users.id", "like", `%${search}%`);
 
-      if (!user || user.length === 0) {
+      if (!users || users.length === 0) {
         return res.status(200).json({
           message: "No matching User found.",
         });
       }
 
-      res.status(201).json({
+      // Organize the response to differentiate client data
+      const usersWithClientData = users.map(user => {
+        if (user.role === 'Client') {
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            org_name: user.org_name, // Client-specific data
+            comp_add: user.comp_add, // Client-specific data
+            contact_num: user.contact_num, // Client-specific data
+            img_url: user.img_url, // Include profile image if available
+          };
+        }
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          img_url: user.img_url, // Include profile image if available
+        };
+      });
+
+      res.status(200).json({
         message: `Search successful`,
-        user,
+        users: usersWithClientData,
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction if any error occurs
-
-      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
-      if (req.file) {
-        const filePath = path.join(
-          __dirname,
-          "..",
-          "assets",
-          "profilePictures",
-          req.file.filename
-        );
-        fs.unlink(filePath, (err) => {
-          if (err) console.error("Failed to delete file:", err);
-        });
-      }
       res.status(500).json({ error: error.message });
     }
   }
@@ -392,7 +429,11 @@ app.get(
   authorizePermission("view_users"),
   async (req, res) => {
     try {
-      const users = await db("users").select("*");
+      // Join users with clients table, only for 'Client' role
+      const users = await db("users")
+        .leftJoin("clients", "users.id", "clients.client_id") // Left join on clients table
+        .select("users.*", "clients.*") // Select all user fields and client fields
+        .whereIn("users.role", ["Admin", "Client", "WarehouseMan", "Supervisor", "PlantOfficer", "Guard"]); // Ensure we only return relevant roles
 
       if (!users || users.length === 0) {
         return res.status(200).json({
@@ -400,53 +441,144 @@ app.get(
         });
       }
 
-      res.status(201).json({
+      // Organize the response to differentiate client data
+      const usersWithClientData = users.map(user => {
+        if (user.role === 'Client') {
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            org_name: user.org_name,
+            comp_add: user.comp_add,
+            contact_num: user.contact_num,
+            img_url: user.img_url, // include profile image if available
+          };
+        }
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          img_url: user.img_url, // include profile image if available
+        };
+      });
+
+      res.status(200).json({
         message: `Users Viewed successfully`,
-        users,
+        users: usersWithClientData,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 // Update User
 app.put(
   "/update-user/:id",
   authenticateToken,
   authorizePermission("update_users"),
+  uploadImage("profilePictures"), // Middleware to process image uploads
   async (req, res) => {
     const trx = await db.transaction();
 
     try {
       const { id } = req.params;
-      const { name, email, role } = req.body;
+      const { name, email, role, org_name, comp_add, contact_num, password } = req.body;
+      let { image } = req.body;
 
-      updatedRows = await trx("users")
+      const validRoles = [
+        "WarehouseMan",
+        "Supervisor",
+        "PlantOfficer",
+        "Guard",
+        "Admin",
+        "Client",
+      ];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role provided" });
+      }
+
+      // Fetch the current user data from the database
+      const user = await trx("users").where({ id }).first();
+      if (!user) {
+        await trx.rollback();
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Hash the new password if provided
+      let hashedPassword = user.password_hash;
+      if (password) {
+        hashedPassword = await bcrypt.hash(password, 10);
+      }
+
+      // Determine profile picture path (if a new image is uploaded)
+      if (req.file) {
+        image = `/assets/profilePictures/${req.file.filename}`;
+      } else if (!image) {
+        image = user.img_url; // Retain the existing image if no new one is uploaded
+      }
+
+      // Update the user in the "users" table
+      const updatedRows = await trx("users")
         .where("id", id)
-        .update({ name, email, role });
+        .update({
+          name,
+          email,
+          role,
+          password_hash: hashedPassword, // Update password if provided
+          img_url: image, // Update image path if a new image is uploaded
+        });
 
       if (!updatedRows) {
         await trx.rollback();
-        return { message: "No matching User found." };
+        return res.status(404).json({ message: "No matching user found" });
       }
+      updatedUser = await trx("users").where({ id }).first();
 
-      const updatedUser = await trx("users").where({ id }).first();
+      let client = null;
+      if (role === "Client") {
+        // If the role is "Client", check if the user has a client entry
+        const existingClient = await trx("clients").where({ client_id: id }).first();
 
-      await trx.commit();
+        if (existingClient) {
+          // If the client already exists, update it
+          await trx("clients")
+            .where({ client_id: id })
+            .update({
+              org_name,
+              comp_add,
+              contact_num,
+            });
+          client = await trx("clients").where({ client_id: id }).first();
+        } else {
+          // If no client exists, create a new client entry using the user ID as the client_id
+          await trx("clients").insert({
+            client_id: id,  // Use the user's ID as client_id
+            org_name,
+            comp_add,
+            contact_num,
+          });
+          client = await trx("clients").where({ client_id: id }).first();
+        }
+      }
+      await trx.commit(); // Commit transaction
 
-      res.status(201).json({
-        message: `User Updated successfully`,
+      // Return the updated user and client (if role is "Client")
+      res.status(200).json({
+        message: "User updated successfully",
         updatedUser,
+        client, // Include client data if the role is "Client"
       });
     } catch (error) {
-      await trx.rollback();
+      await trx.rollback(); // Rollback transaction in case of error
       res.status(500).json({ error: error.message });
     }
   }
 );
 
-// Delete User
 app.delete(
   "/delete-user/:id",
   authenticateToken,
@@ -457,21 +589,45 @@ app.delete(
     try {
       const { id } = req.params;
 
-      user = await trx("users").where({ id }).first();
+      // Check if user exists
+      const user = await trx("users").where({ id }).first();
       if (!user) {
-        return { message: "No matching User found." };
+        return res.status(404).json({ message: "No matching User found." });
       }
 
+      // Check if the user is a Client and find corresponding client record
+      let client = null;
+      if (user.role === "Client") {
+        client = await trx("clients").where({ client_id: id }).first();
+        if (!client) {
+          return res.status(404).json({ message: "No matching Client found." });
+        }
+      }
+
+      // Delete the user record (this will trigger the cascade delete for the client record)
       await trx("users").where("id", id).del();
 
       await trx.commit();
 
-      res.status(201).json({ message: "User Deleted successfully", user });
+      // Return success response
+      if (user.role === "Client") {
+        res.status(200).json({
+          message: "Client deleted successfully.",
+          user,
+          client,
+        });
+      } else {
+        res.status(200).json({
+          message: "User deleted successfully.",
+          user,
+        });
+      }
     } catch (error) {
       await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 module.exports = app;
