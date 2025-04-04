@@ -3,10 +3,10 @@ const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
-const uploadImage = require("../middleware/uploadImage"); // Adjust the path as needed
+const uploadImage = require("../middleware/uploadImage"); 
 const fs = require("fs");
 const path = require("path");
-
+const { sendEmail } = require("../middleware/email.js"); 
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -38,7 +38,12 @@ app.post("/login", async (req, res) => {
 
     // Check if the account is verified
     if (user.acc_status !== "Verified") {
-      return res.status(403).json({ error: "Account not verified. Please verify your email before logging in." });
+      return res
+        .status(403)
+        .json({
+          error:
+            "Account not verified. Please verify your email before logging in.",
+        });
     }
 
     // Compare passwords
@@ -81,13 +86,14 @@ app.post(
   "/register",
   authenticateToken,
   authorizePermission("create_users"),
-  uploadImage('profilePictures'), // Middleware to process image uploads
+  uploadImage("profilePictures"), // Middleware to process image uploads
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
 
     try {
-      const { name, email, password, role, org_name, comp_add, contact_num,} = req.body;
-      let { image } = req.body; 
+      const { name, email, password, role, org_name, comp_add, contact_num } =
+        req.body;
+      let { image } = req.body;
       const id = uuidv4();
 
       const validRoles = [
@@ -96,7 +102,7 @@ app.post(
         "PlantOfficer",
         "Guard",
         "Admin",
-        "Client"
+        "Client",
       ];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role provided" });
@@ -129,7 +135,7 @@ app.post(
       let client = null;
       if (role === "Client") {
         await trx("clients").insert({
-          client_id : id,
+          client_id: id,
           org_name,
           comp_add,
           contact_num,
@@ -140,20 +146,40 @@ app.post(
       // ✅ Use `trx` to fetch the user within the same transaction
       const user = await trx("users").where({ id }).first();
 
+      // Send email verification
+      const verificationToken = jwt.sign({ id, email }, SECRET_KEY, {
+        expiresIn: "1h",
+      });
+      const verifyLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+      await sendEmail(
+        email,
+        "Verify Your Email",
+        `<p>Hello ${name},</p>
+   <p>Please verify your email by clicking this <a href="${verifyLink}">link</a>.</p>
+   <p>This link expires in 1 hour.</p>`
+      );
+
       await trx.commit(); // Commit transaction
 
       if (role === "Client") {
-        res.status(201).json({ message: "User Created successfully", user, client });
+        res
+          .status(201)
+          .json({ message: "User Created successfully", user, client });
       } else {
         res.status(201).json({ message: "User Created successfully", user });
       }
-
     } catch (error) {
       await trx.rollback(); // Rollback transaction if any error occurs
 
       // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
       if (req.file) {
-        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "assets",
+          "profilePictures",
+          req.file.filename
+        );
         fs.unlink(filePath, (err) => {
           if (err) console.error("Failed to delete file:", err);
         });
@@ -164,7 +190,7 @@ app.post(
 );
 
 app.get("/verify-email", async (req, res) => {
-  const trx = await db.transaction(); 
+  const trx = await db.transaction();
   try {
     const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer token
     if (!token) {
@@ -195,7 +221,6 @@ app.get("/verify-email", async (req, res) => {
   }
 });
 
-
 app.post("/forgot-password", async (req, res) => {
   const trx = await db.transaction();
   try {
@@ -208,7 +233,9 @@ app.post("/forgot-password", async (req, res) => {
     }
 
     // Generate a password reset token (JWT)
-    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "1h" });
+    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, {
+      expiresIn: "1h",
+    });
 
     // Generate a reset link that the user can use
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
@@ -238,7 +265,7 @@ app.post("/reset-password", async (req, res) => {
     const decoded = jwt.verify(token, SECRET_KEY);
 
     // Get the user's data from the database
-    const user = await trx("users").where("id", decoded.id).first();  
+    const user = await trx("users").where("id", decoded.id).first();
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -247,14 +274,16 @@ app.post("/reset-password", async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update the user's password
-    await trx("users").where("id", decoded.id).update({ password_hash: hashedPassword });
+    await trx("users")
+      .where("id", decoded.id)
+      .update({ password_hash: hashedPassword });
 
     // Commit the transaction
     await trx.commit();
 
     res.json({ message: "Password reset successfully" });
   } catch (error) {
-    await trx.rollback();  
+    await trx.rollback();
     res.status(400).json({ error: "Invalid or expired token" });
   }
 });
@@ -340,7 +369,13 @@ app.get(
 
       // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
       if (req.file) {
-        const filePath = path.join(__dirname, "..", "assets", "profilePictures", req.file.filename);
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "assets",
+          "profilePictures",
+          req.file.filename
+        );
         fs.unlink(filePath, (err) => {
           if (err) console.error("Failed to delete file:", err);
         });
