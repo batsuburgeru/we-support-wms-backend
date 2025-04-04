@@ -1,5 +1,7 @@
 node_modules/
-/db/
+/db/*
+/db/wms_b.session.sql
 /.env
 /.vscode/
-/assets/
+/assets/profilePictures/*
+/assets/products/*

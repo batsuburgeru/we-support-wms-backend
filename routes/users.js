@@ -163,6 +163,102 @@ app.post(
   }
 );
 
+app.get("/verify-email", async (req, res) => {
+  const trx = await db.transaction(); 
+  try {
+    const token = req.headers.authorization?.split(" ")[1]; // Extract Bearer token
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    console.log("Received Token:", token);
+
+    // Verify the token
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Update the user's account status to Verified inside the transaction
+    const updated = await trx("users")
+      .where("id", decoded.id)
+      .update({ acc_status: "Verified" });
+
+    if (!updated) {
+      return res.status(400).json({ error: "Invalid or expired token" });
+    }
+
+    await trx.commit();
+
+    res.json({ message: "Email verified successfully. You can now log in." });
+  } catch (error) {
+    await trx.rollback();
+    console.error("Error:", error.message);
+    res.status(400).json({ error: "Invalid or expired token" });
+  }
+});
+
+
+app.post("/forgot-password", async (req, res) => {
+  const trx = await db.transaction();
+  try {
+    const { email } = req.body;
+
+    // Check if the user exists
+    const user = await trx("users").where("email", email).first();
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate a password reset token (JWT)
+    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "1h" });
+
+    // Generate a reset link that the user can use
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    // Send reset email
+    await sendEmail(
+      email,
+      "Reset Your Password",
+      `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
+    );
+
+    await trx.commit();
+
+    res.json({ message: "Password reset email sent" });
+  } catch (error) {
+    await trx.rollback();
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/reset-password", async (req, res) => {
+  const trx = await db.transaction();
+  try {
+    const { token, newPassword } = req.body;
+
+    // Verify the token to extract the user info
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Get the user's data from the database
+    const user = await trx("users").where("id", decoded.id).first();  
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password
+    await trx("users").where("id", decoded.id).update({ password_hash: hashedPassword });
+
+    // Commit the transaction
+    await trx.commit();
+
+    res.json({ message: "Password reset successfully" });
+  } catch (error) {
+    await trx.rollback();  
+    res.status(400).json({ error: "Invalid or expired token" });
+  }
+});
+
 // User Info Display
 app.get(
   "/display-user-info",
