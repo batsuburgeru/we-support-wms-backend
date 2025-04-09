@@ -85,8 +85,21 @@ app.post("/logout", (req, res) => {
 
 app.post(
   "/register",
-  authenticateToken,
-  authorizePermission("create_users"),
+
+  /* async (req, res, next) => {
+    const { role } = req.body;
+
+    if (role === "Client") {
+      // Client self-registration — no auth needed
+      return next();
+    }
+
+    // Other roles need authentication + permission
+    authenticateToken(req, res, async () => {
+      authorizePermission("create_users")(req, res, next);
+    });
+  }, */
+
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
 
@@ -495,7 +508,7 @@ app.put(
     try {
       const { id } = req.params;
       const { name, email, role, org_name, comp_add, contact_num, password } = req.body;
-      let { image } = req.body;
+      let { image } = req.file;
 
       const validRoles = [
         "WarehouseMan",
