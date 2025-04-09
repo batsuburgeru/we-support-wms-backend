@@ -7,6 +7,7 @@ const uploadImage = require("../middleware/uploadImage");
 const fs = require("fs");
 const path = require("path");
 const { sendEmail } = require("../middleware/email.js"); 
+const DEFAULT_IMAGE = "/assets/profilePictures/default.jpg";
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -172,40 +173,39 @@ app.get("/verify-email", async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) {
-      return res.status(400).json({ error: "Token is required" });
+      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=Missing token`);
     }
 
     console.log("Received Token:", token);
 
-    // Verify the token and handle expiration
+    // Verify token
     let decoded;
     try {
       decoded = jwt.verify(token, SECRET_KEY);
     } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        return res.status(400).json({ error: "Token has expired" });
-      }
-      return res.status(400).json({ error: "Invalid token" });
+      const msg = error.name === 'TokenExpiredError' ? "Token expired" : "Invalid token";
+      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=${encodeURIComponent(msg)}`);
     }
 
-    // Update the user's account status to Verified inside the transaction
+    // Update user
     const updated = await trx("users")
       .where("id", decoded.id)
       .update({ acc_status: "Verified" });
 
     if (!updated) {
-      return res.status(400).json({ error: "Invalid or expired token" });
+      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=Invalid or expired token`);
     }
 
     await trx.commit();
 
-    res.json({ message: "Email verified successfully. You can now log in." });
+    return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=success&message=${encodeURIComponent("Email verified successfully")}`);
   } catch (error) {
     await trx.rollback();
     console.error("Error:", error.message);
-    res.status(400).json({ error: "Invalid or expired token" });
+    return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=${encodeURIComponent("Something went wrong")}`);
   }
 });
+
 
 app.post("/forgot-password", async (req, res) => {
   const trx = await db.transaction();
@@ -242,19 +242,25 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
-app.post("/reset-password", async (req, res) => {
+app.put("/reset-password", async (req, res) => {
   const trx = await db.transaction();
   try {
-    const { token } = req.query.token; 
+    // Extract token from query params
+    const token = req.query.token;
     const { newPassword } = req.body;
 
-    // Verify the token to extract the user info
+    // Check if token is provided
+    if (!token) {
+      return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("Token is required")}`);
+    }
+
+    // Verify the token to extract user info
     const decoded = jwt.verify(token, SECRET_KEY);
 
     // Get the user's data from the database
     const user = await trx("users").where("id", decoded.id).first();
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("User not found")}`);
     }
 
     // Hash the new password
@@ -268,10 +274,13 @@ app.post("/reset-password", async (req, res) => {
     // Commit the transaction
     await trx.commit();
 
-    res.json({ message: "Password reset successfully" });
+    // Redirect to the frontend with success message
+    return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=success&message=${encodeURIComponent("Password reset successfully")}`);
   } catch (error) {
     await trx.rollback();
-    res.status(400).json({ error: "Invalid or expired token" });
+    console.error("Error:", error);
+    // Redirect to the frontend with error message
+    return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("Invalid or expired token")}`);
   }
 });
 
@@ -474,7 +483,6 @@ app.get(
   }
 );
 
-
 // Update User
 app.put(
   "/update-user/:id",
@@ -497,83 +505,98 @@ app.put(
         "Admin",
         "Client",
       ];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({ error: "Invalid role provided" });
-      }
 
-      // Fetch the current user data from the database
+      // Fetch current user data
       const user = await trx("users").where({ id }).first();
       if (!user) {
         await trx.rollback();
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Hash the new password if provided
+      const currentRole = user.role;
+
+      // Validate role only if it's provided and not empty
+      const trimmedRole = role?.trim();
+      if (trimmedRole && !validRoles.includes(trimmedRole)) {
+        await trx.rollback();
+        return res.status(400).json({ error: "Invalid role provided" });
+      }
+
+      // Hash new password if provided
       let hashedPassword = user.password_hash;
-      if (password) {
+      if (password && password.trim() !== "") {
         hashedPassword = await bcrypt.hash(password, 10);
       }
 
-      // Determine profile picture path (if a new image is uploaded)
+      // Handle image upload and deletion
       if (req.file) {
+        if (user.img_url && user.img_url !== DEFAULT_IMAGE) {
+          const oldImagePath = path.join(__dirname, "public", user.img_url);
+          fs.unlink(oldImagePath, (err) => {
+            if (err) {
+              console.error("Failed to delete old image:", err.message);
+            }
+          });
+        }
         image = `/assets/profilePictures/${req.file.filename}`;
-      } else if (!image) {
-        image = user.img_url; // Retain the existing image if no new one is uploaded
+      } else if (!image || image.trim() === "") {
+        image = user.img_url || DEFAULT_IMAGE;
       }
 
-      // Update the user in the "users" table
-      const updatedRows = await trx("users")
-        .where("id", id)
-        .update({
-          name,
-          email,
-          role,
-          password_hash: hashedPassword, // Update password if provided
-          img_url: image, // Update image path if a new image is uploaded
-        });
+      // Prepare updated data (fall back to current values if missing or empty)
+      const updatedData = {
+        name: name?.trim() !== "" ? name : user.name,
+        email: email?.trim() !== "" ? email : user.email,
+        role: trimmedRole || user.role,
+        password_hash: hashedPassword,
+        img_url: image,
+      };
 
+      // Update users table
+      const updatedRows = await trx("users").where("id", id).update(updatedData);
       if (!updatedRows) {
         await trx.rollback();
         return res.status(404).json({ message: "No matching user found" });
       }
-      updatedUser = await trx("users").where({ id }).first();
+
+      const updatedUser = await trx("users").where({ id }).first();
+      updatedUser.img_url = updatedUser.img_url || DEFAULT_IMAGE;
 
       let client = null;
-      if (role === "Client") {
-        // If the role is "Client", check if the user has a client entry
+
+      if (updatedData.role === "Client") {
         const existingClient = await trx("clients").where({ client_id: id }).first();
 
-        if (existingClient) {
-          // If the client already exists, update it
-          await trx("clients")
-            .where({ client_id: id })
-            .update({
-              org_name,
-              comp_add,
-              contact_num,
-            });
-          client = await trx("clients").where({ client_id: id }).first();
-        } else {
-          // If no client exists, create a new client entry using the user ID as the client_id
-          await trx("clients").insert({
-            client_id: id,  // Use the user's ID as client_id
-            org_name,
-            comp_add,
-            contact_num,
-          });
-          client = await trx("clients").where({ client_id: id }).first();
-        }
-      }
-      await trx.commit(); // Commit transaction
+        const clientData = {
+          org_name: org_name?.trim() !== "" ? org_name : existingClient?.org_name || "",
+          comp_add: comp_add?.trim() !== "" ? comp_add : existingClient?.comp_add || "",
+          contact_num: contact_num?.trim() !== "" ? contact_num : existingClient?.contact_num || "",
+        };
 
-      // Return the updated user and client (if role is "Client")
+        if (existingClient) {
+          await trx("clients").where({ client_id: id }).update(clientData);
+        } else {
+          await trx("clients").insert({
+            client_id: id,
+            ...clientData,
+          });
+        }
+
+        client = await trx("clients").where({ client_id: id }).first();
+      } else if (currentRole === "Client" && updatedData.role !== "Client") {
+        await trx("clients").where({ client_id: id }).del();
+      }
+
+      await trx.commit();
+
       res.status(200).json({
         message: "User updated successfully",
         updatedUser,
-        client, // Include client data if the role is "Client"
+        client,
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction in case of error
+      await trx.rollback();
+      console.error("Update error:", error);
       res.status(500).json({ error: error.message });
     }
   }
