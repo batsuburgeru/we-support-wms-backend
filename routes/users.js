@@ -508,7 +508,7 @@ app.put(
     try {
       const { id } = req.params;
       const { name, email, role, org_name, comp_add, contact_num, password } = req.body;
-      let { image } = req.file;
+      let image  = DEFAULT_IMAGE;
 
       const validRoles = [
         "WarehouseMan",
@@ -522,8 +522,7 @@ app.put(
       // Fetch current user data
       const user = await trx("users").where({ id }).first();
       if (!user) {
-        await trx.rollback();
-        return res.status(404).json({ error: "User not found" });
+        throw new Error("No matching User found");
       }
 
       const currentRole = user.role;
@@ -531,8 +530,7 @@ app.put(
       // Validate role only if it's provided and not empty
       const trimmedRole = role?.trim();
       if (trimmedRole && !validRoles.includes(trimmedRole)) {
-        await trx.rollback();
-        return res.status(400).json({ error: "Invalid role provided" });
+        throw new Error("Invalid Role Provided");
       }
 
       // Hash new password if provided
@@ -568,8 +566,7 @@ app.put(
       // Update users table
       const updatedRows = await trx("users").where("id", id).update(updatedData);
       if (!updatedRows) {
-        await trx.rollback();
-        return res.status(404).json({ message: "No matching user found" });
+        throw new Error("No matching User found");
       }
 
       const updatedUser = await trx("users").where({ id }).first();
@@ -628,7 +625,7 @@ app.delete(
       // Check if user exists
       const user = await trx("users").where({ id }).first();
       if (!user) {
-        return res.status(404).json({ message: "No matching User found." });
+        throw new Error("No matching User found");
       }
 
       // Check if the user is a Client and find corresponding client record
@@ -638,6 +635,18 @@ app.delete(
         if (!client) {
           return res.status(404).json({ message: "No matching Client found." });
         }
+      }
+
+      // Check if user has a profile image and delete it from the folder
+      if (user.image_url && user.image_url !== DEFAULT_IMAGE) {
+        const imagePath = path.join(__dirname, "..", user.image_url);
+        fs.unlink(imagePath, (err) => {
+          if (err) {
+            console.error("Failed to delete user image:", err.message);
+          } else {
+            console.log("User image deleted successfully.");
+          }
+        });
       }
 
       // Delete the user record (this will trigger the cascade delete for the client record)
@@ -664,6 +673,7 @@ app.delete(
     }
   }
 );
+
 
 
 module.exports = app;
