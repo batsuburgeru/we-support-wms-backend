@@ -1,9 +1,9 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
-const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const path = require("path");
 
 const categories = require("./routes/categories.js");
 const deliveryNotes = require("./routes/deliveryNotes.js");
@@ -31,6 +31,7 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(cookieParser()); 
 
+app.use("/assets", express.static(path.join(__dirname, "assets")));
 app.use("/categories", categories);
 app.use("/deliveryNotes", deliveryNotes);
 app.use("/goodsIssues", goodsIssues);
