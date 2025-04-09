@@ -1,5 +1,8 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
+const fs = require("fs");
+const path = require("path");
+const DEFAULT_IMAGE = "/assets/products/default.jpg";
 
 const app = express.Router();
 app.use(express.json());
@@ -10,11 +13,13 @@ const {
   authenticateToken,
   authorizePermission,
 } = require("../middleware/authentication.js");
+const uploadImage = require("../middleware/uploadImage.js");
 
 app.post(
   "/create-product",
   authenticateToken,
   authorizePermission("create_products"),
+  uploadImage("products"), // Use the custom middleware for image upload
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
 
@@ -27,7 +32,15 @@ app.post(
         stock_quantity,
         unit_price,
       } = req.body;
+      let image = req.file;
       const id = uuidv4(); // Generate UUID manually
+
+      // Determine profile picture path
+      if (req.file) {
+        image = `/assets/products/${req.file.filename}`; // Save only relative path in DB
+      } else if (!image) {
+        image = DEFAULT_IMAGE; // No file uploaded, and no path provided
+      }
 
       await trx("products").insert({
         id,
@@ -37,6 +50,7 @@ app.post(
         category_id,
         stock_quantity,
         unit_price,
+        img_url: image,
       });
 
       const product = await trx("products").where({ id }).first();
@@ -49,6 +63,19 @@ app.post(
       });
     } catch (error) {
       await trx.rollback(); // Rollback on error
+       // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+       if (req.file) {
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "assets",
+          "products",
+          req.file.filename
+        );
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   }
@@ -114,6 +141,7 @@ app.put(
   "/update-product/:id",
   authenticateToken,
   authorizePermission("update_products"),
+  uploadImage("products"), // Use the custom middleware for image upload
   async (req, res) => {
     const trx = await db.transaction(); // Start transaction
     try {
@@ -126,20 +154,44 @@ app.put(
         stock_quantity,
         unit_price,
       } = req.body;
+      let image = DEFAULT_IMAGE;
 
-      // Update product
-      const updatedRows = await trx("products").where({ id }).update({
-        name,
-        sku,
-        description,
-        category_id,
-        stock_quantity,
-        unit_price,
-      });
+      // Fetch current product data
+      const product = await trx("products").where({ id }).first();
+      if (!product) {
+        throw new Error("No matching Product found");
+      }
 
+      // Handle image upload and deletion
+            if (req.file) {
+              if (product.img_url && product.img_url !== DEFAULT_IMAGE) {
+                const oldImagePath = path.join(__dirname, "..", product.img_url);
+                fs.unlink(oldImagePath, (err) => {
+                  if (err) {
+                    console.error("Failed to delete old image:", err.message);
+                  }
+                });
+              }
+              image = `/assets/products/${req.file.filename}`;
+            } else if (!image || image.trim() === "") {
+              image = product.img_url || DEFAULT_IMAGE;
+            }
+
+      // Prepare updated data (fall back to current values if missing or empty)
+      const updatedData = {
+        name: name?.trim() !== "" ? name : product.name,
+        sku: sku?.trim() !== "" ? sku : product.sku,
+        description: description?.trim() !== "" ? description : product.description,
+        category_id: category_id?.trim() !== "" ? category_id : product.category_id,
+        stock_quantity: stock_quantity?.trim() !== "" ? stock_quantity : product.stock_quantity,
+        unit_price: unit_price?.trim() !== "" ? unit_price : product.unit_price,
+        img_url: image,
+      };
+
+      // Update products table
+      const updatedRows = await trx("products").where("id", id).update(updatedData);
       if (!updatedRows) {
-        await trx.rollback();
-        return { message: "No matching Product found." };
+        throw new Error("No matching Product found");
       }
 
       // Retrieve updated product
@@ -153,6 +205,19 @@ app.put(
       });
     } catch (error) {
       await trx.rollback(); // Rollback on error
+      // 🔥 Corrected file deletion path (pointing to root `/assets` folder)
+      if (req.file) {
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "assets",
+          "products",
+          req.file.filename
+        );
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Failed to delete file:", err);
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   }
@@ -168,12 +233,23 @@ app.delete(
     try {
       const { id } = req.params;
 
-      product = await trx("products").where({ id }).first();
-
+      // Check if user exists
+      const product = await trx("products").where({ id }).first();
       if (!product) {
-        return { message: "No matching Product found." };
+        throw new Error("No matching Product found");
       }
-
+      // Check if product has an image and delete it from the folder
+            if (product.img_url && product.img_url !== DEFAULT_IMAGE) {
+              const imagePath = path.join(__dirname, "..", product.img_url);
+              fs.unlink(imagePath, (err) => {
+                if (err) {
+                  console.error("Failed to delete user image:", err.message);
+                } else {
+                  console.log("User image deleted successfully.");
+                }
+              });
+            }
+            
       // Delete the product
       await trx("products").where({ id }).del();
 
@@ -189,137 +265,5 @@ app.delete(
     }
   }
 );
-
-// Update Product
-
-/* // Search Products
-app.get(
-  "/search-products",
-  authenticateToken,
-  authorizePermission("view_products"),
-  async (req, res) => {
-    try {
-      const { search } = req.query;
-
-      data = await db("products")
-        .select("*")
-        .where("name", "like", `%${search}%`);
-
-      res.status(201).json({
-        message: "Search successful",
-        data: data,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Read Products
-app.get(
-  "/view-products",
-  authenticateToken,
-  authorizePermission("view_products"),
-  async (req, res) => {
-    try {
-      data = await db("products").select("*");
-      res.status(201).json({
-        message: "Products viewed successfully",
-        data: data,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Create Products
-app.post(
-  "/create-product",
-  authenticateToken,
-  authorizePermission("create_products"),
-  async (req, res) => {
-    try {
-      const {
-        name,
-        sku,
-        description,
-        category_id,
-        stock_quantity,
-        unit_price,
-      } = req.body;
-
-      await db("products").insert({
-        name,
-        sku,
-        description,
-        category_id,
-        stock_quantity,
-        unit_price,
-      });
-
-      res.status(201).json({
-        message: "Product created successfully",
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Update Products
-app.put(
-  "/update-product/:id",
-  authenticateToken,
-  authorizePermission("update_products"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const {
-        name,
-        sku,
-        description,
-        category_id,
-        stock_quantity,
-        unit_price,
-      } = req.body;
-
-      await db("products").where({ id }).update({
-        name,
-        sku,
-        description,
-        category_id,
-        stock_quantity,
-        unit_price,
-      });
-
-      res.status(201).json({
-        message: "Product updated successfully",
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Delete Products
-app.delete(
-  "/delete-product/:id",
-  authenticateToken,
-  authorizePermission("delete_products"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      await db("products").where({ id }).del();
-
-      res.status(201).json({
-        message: "Product deleted successfully",
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-); */
 
 module.exports = app;
