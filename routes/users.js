@@ -219,6 +219,47 @@ app.get("/verify-email", async (req, res) => {
   }
 });
 
+app.post("/resend-verification-email", async (req, res) => {
+  const trx = await db.transaction();
+  try {
+    const { email } = req.body;
+
+    // Check if the user exists and is not already verified
+    const user = await trx("users").where("email", email).first();
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.acc_status === "Verified") {
+      return res.status(400).json({ error: "Account is already verified" });
+    }
+
+    // Generate a new verification token
+    const verificationToken = jwt.sign({ id: user.id, email: user.email }, SECRET_KEY, {
+      expiresIn: "1h",
+    });
+
+    // Generate the verification link
+    const verifyLink = `${process.env.BACKEND_URL}/users/verify-email?token=${verificationToken}`;
+
+    // Send verification email
+    await sendEmail(
+      email,
+      "Verify Your Email",
+      `<p>Hello ${user.name},</p>
+       <p>Please verify your email by clicking this <a href="${verifyLink}">link</a>.</p>
+       <p>This link expires in 1 hour.</p>`
+    );
+
+    await trx.commit();
+
+    res.json({ message: "Verification email resent" });
+  } catch (error) {
+    await trx.rollback();
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 app.post("/forgot-password", async (req, res) => {
   const trx = await db.transaction();
@@ -289,6 +330,41 @@ app.put("/reset-password", async (req, res) => {
     await trx.rollback();
     console.error("Error:", error);
     return res.status(400).json({ success: false, message: "Invalid or expired token" });
+  }
+});
+
+app.post("/resend-password-reset", async (req, res) => {
+  const trx = await db.transaction();
+  try {
+    const { email } = req.body;
+
+    // Check if the user exists
+    const user = await trx("users").where("email", email).first();
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate a new reset token
+    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, {
+      expiresIn: "1h",
+    });
+
+    // Generate the reset link
+    const resetLink = `${process.env.FRONTEND_URL}/password-reset?token=${resetToken}`;
+
+    // Send reset email
+    await sendEmail(
+      email,
+      "Reset Your Password",
+      `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
+    );
+
+    await trx.commit();
+
+    res.json({ message: "Password reset email resent" });
+  } catch (error) {
+    await trx.rollback();
+    res.status(500).json({ error: error.message });
   }
 });
 
