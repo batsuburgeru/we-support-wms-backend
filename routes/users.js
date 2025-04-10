@@ -237,7 +237,7 @@ app.post("/forgot-password", async (req, res) => {
     });
 
     // Generate a reset link that the user can use
-    const resetLink = `${process.env.BACKEND_URL}/users/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL}/password-reset?token=${resetToken}`;
 
     // Send reset email
     await sendEmail(
@@ -264,7 +264,7 @@ app.put("/reset-password", async (req, res) => {
 
     // Check if token is provided
     if (!token) {
-      return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("Token is required")}`);
+      return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("Token is required")}`);
     }
 
     // Verify the token to extract user info
@@ -273,7 +273,7 @@ app.put("/reset-password", async (req, res) => {
     // Get the user's data from the database
     const user = await trx("users").where("id", decoded.id).first();
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("User not found")}`);
+      return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("User not found")}`);
     }
 
     // Hash the new password
@@ -288,12 +288,12 @@ app.put("/reset-password", async (req, res) => {
     await trx.commit();
 
     // Redirect to the frontend with success message
-    return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=success&message=${encodeURIComponent("Password reset successfully")}`);
+    return res.redirect(`${process.env.FRONTEND_URL}/login?status=success&message=${encodeURIComponent("Password reset successfully")}`);
   } catch (error) {
     await trx.rollback();
     console.error("Error:", error);
     // Redirect to the frontend with error message
-    return res.redirect(`${process.env.FRONTEND_URL}/password-reset?status=error&message=${encodeURIComponent("Invalid or expired token")}`);
+    return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("Invalid or expired token")}`);
   }
 });
 
