@@ -258,44 +258,40 @@ app.post("/forgot-password", async (req, res) => {
 app.put("/reset-password", async (req, res) => {
   const trx = await db.transaction();
   try {
-    // Extract token from query params
     const token = req.query.token;
     const { newPassword } = req.body;
 
-    // Check if token is provided
     if (!token) {
-      return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("Token is required")}`);
+      return res.status(400).json({ success: false, message: "Token is required" });
     }
 
-    // Verify the token to extract user info
     const decoded = jwt.verify(token, SECRET_KEY);
 
-    // Get the user's data from the database
     const user = await trx("users").where("id", decoded.id).first();
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("User not found")}`);
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Hash the new password
+    if (!newPassword || newPassword.trim() === "") {
+      return res.status(400).json({ success: false, message: "New password is required" });
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update the user's password
     await trx("users")
       .where("id", decoded.id)
       .update({ password_hash: hashedPassword });
 
-    // Commit the transaction
     await trx.commit();
 
-    // Redirect to the frontend with success message
-    return res.redirect(`${process.env.FRONTEND_URL}/login?status=success&message=${encodeURIComponent("Password reset successfully")}`);
+    return res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
     await trx.rollback();
     console.error("Error:", error);
-    // Redirect to the frontend with error message
-    return res.redirect(`${process.env.FRONTEND_URL}/forgot-password?status=error&message=${encodeURIComponent("Invalid or expired token")}`);
+    return res.status(400).json({ success: false, message: "Invalid or expired token" });
   }
 });
+
 
 // User Info Display
 app.get(
