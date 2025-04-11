@@ -333,42 +333,6 @@ app.put("/reset-password", async (req, res) => {
   }
 });
 
-app.post("/resend-password-reset", async (req, res) => {
-  const trx = await db.transaction();
-  try {
-    const { email } = req.body;
-
-    // Check if the user exists
-    const user = await trx("users").where("email", email).first();
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Generate a new reset token
-    const resetToken = jwt.sign({ id: user.id }, SECRET_KEY, {
-      expiresIn: "1h",
-    });
-
-    // Generate the reset link
-    const resetLink = `${process.env.FRONTEND_URL}/password-reset?token=${resetToken}`;
-
-    // Send reset email
-    await sendEmail(
-      email,
-      "Reset Your Password",
-      `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
-    );
-
-    await trx.commit();
-
-    res.json({ message: "Password reset email resent" });
-  } catch (error) {
-    await trx.rollback();
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
 // User Info Display
 app.get(
   "/display-user-info",
