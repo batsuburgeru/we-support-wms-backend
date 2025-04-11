@@ -22,7 +22,7 @@ app.post(
     try {
       const id = uuidv4(); // Generate UUID manually
       const created_by = req.user.id;
-      const { status, sap_sync_status, note, items } = req.body;
+      const { client_id, note, items } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error("Items array is required and cannot be empty.");
@@ -31,11 +31,9 @@ app.post(
       // Insert into purchase_requests
       await trx("purchase_requests").insert({
         id: id,
+        client_id,
         created_by,
-        status,
-        sap_sync_status,
       });
-
       // Retrieve the inserted purchase request
       const [purchaseRequest] = await trx("purchase_requests")
         .select("*")
@@ -76,25 +74,6 @@ app.post(
       });
     } catch (error) {
       await trx.rollback(); // Rollback transaction on error
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Read Purchase Requests
-app.get(
-  "/view-purchase-requests",
-  authenticateToken,
-  authorizePermission("view_purchase_requests"),
-  async (req, res) => {
-    try {
-      const data = await db("purchase_requests").select("*");
-
-      res.status(200).json({
-        message: `Purchase Requests retrieved successfully`,
-        data,
-      });
-    } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
@@ -149,10 +128,13 @@ app.get(
           "uc.name as created_by_name",  
           "uc.role as created_by_role",  
           "ua.name as approved_by_name",  
-          "ua.role as approved_by_role"  
+          "ua.role as approved_by_role",
+          "ub.name as client_name", // Include client name from users table
+          "ub.role as client_role" // Include client role from users table
         )
         .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
-        .leftJoin("users as ua", "pr.approved_by", "ua.id"); // Join with users table for approver
+        .leftJoin("users as ua", "pr.approved_by", "ua.id") // Join with users table for approver
+        .leftJoin("users as ub", "pr.client_id", "ub.id") // Join with users table for client
 
       if (!purchaseRequests || purchaseRequests.length === 0) {
         await trx.commit();
@@ -215,10 +197,13 @@ app.get(
           "uc.name as created_by_name",
           "uc.role as created_by_role",
           "ua.name as approved_by_name",
-          "ua.role as approved_by_role"
+          "ua.role as approved_by_role",
+          "ub.name as client_name", // Include client name from users table
+          "ub.role as client_role" // Include client role from users table
         )
         .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
         .leftJoin("users as ua", "pr.approved_by", "ua.id") // Join with users table for approver
+        .leftJoin("users as ub", "pr.client_id", "ub.id") // Join with users table for client
         .where("pr.id", search)
         .first();
 
