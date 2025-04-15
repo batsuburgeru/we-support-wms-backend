@@ -180,74 +180,100 @@ app.get(
   }
 );
 
-// Read Specific Purchase Request
+// Search Purchase Request by pr_id or client name
 app.get(
   "/search-purchase-request",
   authenticateToken,
   authorizePermission("view_purchase_requests"),
   async (req, res) => {
-    const trx = await db.transaction(); // Start transaction
+    const trx = await db.transaction();
 
     try {
       const { search } = req.query;
 
-      // Fetch the purchase request along with creator and approver details
-      const purchaseRequest = await trx("purchase_requests as pr")
-        .select(
-          "pr.*",
-          "uc.name as created_by_name",
-          "uc.role as created_by_role",
-          "ua.name as approved_by_name",
-          "ua.role as approved_by_role",
-          "ub.name as client_name", // Include client name from users table
-          "ub.role as client_role" // Include client role from users table
-        )
-        .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
-        .leftJoin("users as ua", "pr.approved_by", "ua.id") // Join with users table for approver
-        .leftJoin("users as ub", "pr.client_id", "ub.id") // Join with users table for client
-        .where("pr.id", search)
-        .first();
-
-      if (!purchaseRequest) {
-        await trx.commit();
-        return res.status(200).json({
-          message: "No matching Purchase Request found.",
-        });
+      if (!search) {
+        await trx.rollback();
+        return res.status(400).json({ error: "Search query is required." });
       }
 
-      // Fetch related delivery note
-      const deliveryNote = await trx("delivery_notes")
-        .select("*")
-        .where("pr_id", search)
-        .first();
+      const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(search);
 
-      // Fetch related PR items with product names
-      const prItems = await trx("pr_items as pi")
-        .select(
-          "pi.*",
-          "p.name as product_name" // Include product name from products table
-        )
-        .leftJoin("products as p", "pi.product_id", "p.id") // Join with products table
-        .where("pi.pr_id", search);
+      let purchaseRequests;
 
-      await trx.commit(); // Commit transaction
+      if (isUUID) {
+        // Search by pr_id
+        purchaseRequests = await trx("purchase_requests as pr")
+          .select(
+            "pr.*",
+            "uc.name as created_by_name",
+            "uc.role as created_by_role",
+            "ua.name as approved_by_name",
+            "ua.role as approved_by_role",
+            "ub.name as client_name",
+            "ub.role as client_role"
+          )
+          .leftJoin("users as uc", "pr.created_by", "uc.id")
+          .leftJoin("users as ua", "pr.approved_by", "ua.id")
+          .leftJoin("users as ub", "pr.client_id", "ub.id")
+          .where("pr.id", search);
+      } else {
+        // Search by client name (partial match)
+        purchaseRequests = await trx("purchase_requests as pr")
+          .select(
+            "pr.*",
+            "uc.name as created_by_name",
+            "uc.role as created_by_role",
+            "ua.name as approved_by_name",
+            "ua.role as approved_by_role",
+            "ub.name as client_name",
+            "ub.role as client_role"
+          )
+          .leftJoin("users as uc", "pr.created_by", "uc.id")
+          .leftJoin("users as ua", "pr.approved_by", "ua.id")
+          .leftJoin("users as ub", "pr.client_id", "ub.id")
+          .whereILike("ub.name", `%${search}%`);
+      }
 
-      res.status(200).json({
-        message: `Purchase Request retrieved successfully`,
-        data: {
-          purchaseRequest: {
-            ...purchaseRequest
-          },
-          deliveryNote: deliveryNote || null,
-          prItems,
-        },
+      if (!purchaseRequests || purchaseRequests.length === 0) {
+        await trx.commit();
+        return res.status(200).json({ message: "No matching Purchase Request found." });
+      }
+
+      // Process each result with delivery notes and items
+      const results = await Promise.all(
+        purchaseRequests.map(async (purchaseRequest) => {
+          const prId = purchaseRequest.id;
+
+          const deliveryNote = await trx("delivery_notes")
+            .select("*")
+            .where("pr_id", prId)
+            .first();
+
+          const prItems = await trx("pr_items as pi")
+            .select("pi.*", "p.name as product_name")
+            .leftJoin("products as p", "pi.product_id", "p.id")
+            .where("pi.pr_id", prId);
+
+          return {
+            purchaseRequest,
+            deliveryNote: deliveryNote || null,
+            prItems,
+          };
+        })
+      );
+
+      await trx.commit();
+      return res.status(200).json({
+        message: "Purchase Request(s) retrieved successfully",
+        data: results.length === 1 ? results[0] : results, // Return array if multiple
       });
     } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
+      await trx.rollback();
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 // Filter Purchase Requests using Status
 app.get(
@@ -259,10 +285,22 @@ app.get(
 
     try {
       const { search } = req.query;
-      // Fetch all purchase requests
-      const purchaseRequests = await trx("purchase_requests")
-        .where("status", search)
-        .select("*");
+
+      // Fetch all purchase requests with joined user info
+      const purchaseRequests = await trx("purchase_requests as pr")
+        .select(
+          "pr.*",
+          "uc.name as created_by_name",
+          "uc.role as created_by_role",
+          "ua.name as approved_by_name",
+          "ua.role as approved_by_role",
+          "ub.name as client_name",
+          "ub.role as client_role"
+        )
+        .leftJoin("users as uc", "pr.created_by", "uc.id")
+        .leftJoin("users as ua", "pr.approved_by", "ua.id")
+        .leftJoin("users as ub", "pr.client_id", "ub.id")
+        .where("pr.status", search);
 
       if (!purchaseRequests || purchaseRequests.length === 0) {
         await trx.commit();
@@ -281,10 +319,11 @@ app.get(
             .select("*")
             .where("pr_id", prId);
 
-          // Fetch related PR items
-          const prItems = await trx("pr_items")
-            .select("*")
-            .where("pr_id", prId);
+          // Fetch related PR items with product names
+          const prItems = await trx("pr_items as pi")
+            .select("pi.*", "p.name as product_name")
+            .leftJoin("products as p", "pi.product_id", "p.id")
+            .where("pi.pr_id", prId);
 
           return {
             purchaseRequest,
@@ -297,7 +336,7 @@ app.get(
       await trx.commit(); // Commit transaction
 
       res.status(200).json({
-        message: `All Purchase Requests retrieved successfully`,
+        message: `Filtered Purchase Requests retrieved successfully`,
         data: results,
       });
     } catch (error) {
@@ -306,6 +345,8 @@ app.get(
     }
   }
 );
+
+
 
 // Update Purchase Request
 app.put(
