@@ -22,7 +22,7 @@ app.post(
     try {
       const id = uuidv4(); // Generate UUID manually
       const created_by = req.user.id;
-      const { client_id, note, items } = req.body;
+      const { client_id, status, note, items } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error("Items array is required and cannot be empty.");
@@ -32,6 +32,7 @@ app.post(
       await trx("purchase_requests").insert({
         id: id,
         client_id,
+        status,
         created_by,
       });
       // Retrieve the inserted purchase request
@@ -438,8 +439,6 @@ app.put(
   }
 );
 
-
-
 // Delete Purchase Request
 app.delete(
   "/delete-purchase-request/:id",
@@ -483,109 +482,5 @@ app.delete(
     }
   }
 );
-
-/* // Filter Purchase Requests using Status
-app.get(
-  "/filter-purchase-requests",
-  authenticateToken,
-  authorizePermission("view_purchase_requests"),
-  async (req, res) => {
-    const trx = await db.transaction(); // Start a transaction
-
-    try {
-      const { search } = req.query;
-
-      const data = await trx("purchase_requests")
-        .select("*")
-        .where("status", "like", `%${search}%`);
-
-      await trx.commit(); // Commit transaction
-
-      res.status(200).json({
-        message: `Purchase Requests filtered successfully`,
-        data: data,
-      });
-    } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
-      res.status(500).json({ error: error.message });
-    }
-  }
-); */
-
-// Update Purchase Request
-
-/* // Search Purchase Requests
-app.get(
-  "/search-purchase-request",
-  authenticateToken,
-  authorizePermission("view_purchase_requests"),
-  async (req, res) => {
-    const trx = await db.transaction(); // Start a transaction
-
-    try {
-      const { search } = req.query;
-
-      const data = await trx("purchase_requests")
-        .select("*")
-        .where("id", "like", `%${search}%`);
-
-      await trx.commit(); // Commit transaction
-
-      res.status(200).json({
-        message: `Purchase Requests searched successfully`,
-        data: data,
-      });
-    } catch (error) {
-      await trx.rollback(); // Rollback transaction on error
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Update Purchase Requests
-app.put(
-  "/update-purchase-request/:id",
-  authenticateToken,
-  authorizePermission("update_purchase_requests"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { created_by, status, approved_by, sap_sync_status } = req.body;
-
-      await db("purchase_requests").where({ id }).update({
-        created_by,
-        status,
-        approved_by,
-        sap_sync_status,
-      });
-
-      res.status(201).json({
-        message: `Purchase Request Updated successfully`,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-// Delete Purchase Requests
-app.delete(
-  "/delete-purchase-request/:id",
-  authenticateToken,
-  authorizePermission("delete_purchase_requests"),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      await db("purchase_requests").where({ id }).del();
-
-      res.status(201).json({
-        message: `Purchase Request Deleted successfully`,
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-); */
 
 module.exports = app;
