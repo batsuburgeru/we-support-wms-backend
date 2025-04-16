@@ -184,7 +184,12 @@ app.post(
   }
 );
 
-// Export SAP Sync Logs Route
+const parseDate = (dateStr) => {
+  // Expecting format: dd/mm/yyyy
+  const [day, month, year] = dateStr.split("/").map(Number);
+  return new Date(year, month - 1, day); // month is 0-indexed
+};
+
 app.get(
   "/export-sap-sync-logs",
   authenticateToken,
@@ -195,13 +200,7 @@ app.get(
       const { startDate, endDate, status, prId } = req.query;
 
       const query = trx("sap_sync_logs")
-        .select(
-          "id",
-          "pr_id",
-          "transaction_id",
-          "status",
-          "created_at"
-        )
+        .select("id", "pr_id", "transaction_id", "status", "created_at")
         .orderBy("created_at", "desc");
 
       // Apply filters
@@ -214,30 +213,46 @@ app.get(
       }
 
       if (startDate && endDate) {
-        query.whereBetween("created_at", [new Date(startDate), new Date(endDate)]);
+        query.whereBetween("created_at", [
+          parseDate(startDate),
+          new Date(parseDate(endDate).getTime() + 86399999),
+        ]);
       } else if (startDate) {
-        query.where("created_at", ">=", new Date(startDate));
+        query.where("created_at", ">=", parseDate(startDate));
       } else if (endDate) {
-        query.where("created_at", "<=", new Date(endDate));
+        query.where("created_at", "<=", new Date(parseDate(endDate).getTime() + 86399999));
       }
 
       const logs = await query;
 
       if (logs.length === 0) {
-        await trx.commit(); // Commit even if no logs found, to avoid hanging transactions
+        await trx.commit();
         return res.status(404).json({ message: "No SAP sync logs found." });
       }
+
+      // Format created_at to "dd/mm/yyyy hh:mm:ss"
+      logs.forEach(log => {
+        const date = new Date(log.created_at);
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        const seconds = String(date.getSeconds()).padStart(2, "0");
+
+        log.created_at = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+      });
 
       const parser = new Parser();
       const csv = parser.parse(logs);
 
       res.header("Content-Type", "text/csv");
       res.attachment("sap_sync_logs.csv");
-      await trx.commit(); // Commit after CSV generation
+      await trx.commit();
       return res.send(csv);
-      
+
     } catch (error) {
-      await trx.rollback(); // Rollback on error
+      await trx.rollback();
       console.error("[EXPORT ERROR]", error.message);
       return res.status(500).json({ error: "Failed to export logs" });
     }
