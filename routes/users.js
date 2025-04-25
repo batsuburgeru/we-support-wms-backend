@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { sendEmail } = require("../middleware/email.js");
 const DEFAULT_IMAGE = "/assets/profilePictures/default.jpg";
+const { notifyUsersByRole } = require("../services/notifications.js");
 
 dotenv.config();
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -166,19 +167,19 @@ app.post(
       await trx.commit(); // Commit transaction
 
       if (role === "Client") {
+        await notifyUsersByRole(
+          "Admin",
+          `New Account Registered (#${id}) was submitted and is pending verification.`
+        );
         res
           .status(201)
           .json({ message: "User Created successfully", user, client });
-        await notifyUsersByRole(
-          "Admin",
-          `New Account Registered (#${id}) was submitted and is pending verification.`
-        );
       } else {
-        res.status(201).json({ message: "User Created successfully", user });
         await notifyUsersByRole(
           "Admin",
           `New Account Registered (#${id}) was submitted and is pending verification.`
         );
+        res.status(201).json({ message: "User Created successfully", user });
       }
     } catch (error) {
       await trx.rollback(); // Rollback transaction if any error occurs
