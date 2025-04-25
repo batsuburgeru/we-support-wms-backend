@@ -2,7 +2,6 @@ const express = require("express");
 const { v4: uuidv4 } = require("uuid");
 const { notifyUsersByRole } = require("../services/notifications.js");
 
-
 const app = express.Router();
 app.use(express.json());
 
@@ -135,16 +134,16 @@ app.get(
       const purchaseRequests = await trx("purchase_requests as pr")
         .select(
           "pr.*",
-          "uc.name as created_by_name",  
-          "uc.role as created_by_role",  
-          "ua.name as approved_by_name",  
+          "uc.name as created_by_name",
+          "uc.role as created_by_role",
+          "ua.name as approved_by_name",
           "ua.role as approved_by_role",
           "ub.name as client_name", // Include client name from users table
           "ub.role as client_role" // Include client role from users table
         )
         .leftJoin("users as uc", "pr.created_by", "uc.id") // Join with users table for creator
         .leftJoin("users as ua", "pr.approved_by", "ua.id") // Join with users table for approver
-        .leftJoin("users as ub", "pr.client_id", "ub.id") // Join with users table for client
+        .leftJoin("users as ub", "pr.client_id", "ub.id"); // Join with users table for client
 
       if (!purchaseRequests || purchaseRequests.length === 0) {
         await trx.commit();
@@ -163,11 +162,12 @@ app.get(
             .select("*")
             .where("pr_id", prId);
 
-          // Fetch related PR items with product names
+          // Fetch related PR items with product names and image URLs
           const prItems = await trx("pr_items as pi")
             .select(
               "pi.*",
-              "p.name as product_name" // Fetch product name from products table
+              "p.name as product_name", // Fetch product name from products table
+              "p.img_url as product_img_url" // Fetch product image URL
             )
             .leftJoin("products as p", "pi.product_id", "p.id") // Join with products table
             .where("pi.pr_id", prId);
@@ -205,7 +205,10 @@ app.get(
         return res.status(400).json({ error: "Search query is required." });
       }
 
-      const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(search);
+      const isUUID =
+        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+          search
+        );
 
       let purchaseRequests;
 
@@ -245,7 +248,9 @@ app.get(
 
       if (!purchaseRequests || purchaseRequests.length === 0) {
         await trx.commit();
-        return res.status(200).json({ message: "No matching Purchase Request found." });
+        return res
+          .status(200)
+          .json({ message: "No matching Purchase Request found." });
       }
 
       // Process each result with delivery notes and items
@@ -452,7 +457,9 @@ app.put(
       }
 
       // Update status and approved_by in purchase_requests
-      await trx("purchase_requests").where({ id }).update({ status, approved_by });
+      await trx("purchase_requests")
+        .where({ id })
+        .update({ status, approved_by });
 
       // Append new formatted note if provided
       if (note !== undefined && note.trim() !== "") {
@@ -482,8 +489,7 @@ app.put(
           "Supervisor",
           `Purchase Request (#${id}) was Processed by ${name}.`
         );
-      }
-      else if (status === "Returned") {
+      } else if (status === "Returned") {
         await notifyUsersByRole(
           "WarehouseMan",
           `Purchase Request (#${id}) was Returned by ${name}.`
