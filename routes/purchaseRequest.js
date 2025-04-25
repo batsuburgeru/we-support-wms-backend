@@ -1,5 +1,7 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
+const { notifyUsersByRole } = require("../services/notifications.js");
+
 
 const app = express.Router();
 app.use(express.json());
@@ -64,6 +66,13 @@ app.post(
 
       // Retrieve all inserted PR items
       const prItems = await trx("pr_items").select("*").where("pr_id", id);
+
+      if (status === "Pending") {
+        await notifyUsersByRole(
+          "Supervisor",
+          `New Purchase Request (#${id}) was submitted and is pending approval.`
+        );
+      }
 
       await trx.commit(); // Commit transaction;'
 
@@ -274,7 +283,6 @@ app.get(
   }
 );
 
-
 // Filter Purchase Requests using Status
 app.get(
   "/filter-purchase-requests",
@@ -345,8 +353,6 @@ app.get(
     }
   }
 );
-
-
 
 // Update Purchase Request
 app.put(
@@ -464,6 +470,24 @@ app.put(
         await trx("delivery_notes")
           .where({ pr_id: id })
           .update({ note: updatedNote });
+      }
+
+      if (status === "Approved") {
+        await notifyUsersByRole(
+          "WarehouseMan",
+          `Purchase Request (#${id}) was Approved by ${name}.`
+        );
+      } else if (status === "Processed") {
+        await notifyUsersByRole(
+          "Supervisor",
+          `Purchase Request (#${id}) was Processed by ${name}.`
+        );
+      }
+      else if (status === "Returned") {
+        await notifyUsersByRole(
+          "WarehouseMan",
+          `Purchase Request (#${id}) was Returned by ${name}.`
+        );
       }
 
       await trx.commit();
