@@ -135,6 +135,7 @@ app.post(
         email,
         password_hash: hashedPassword,
         role,
+        img_url: DEFAULT_IMAGE,
       });
 
       let client = null;
