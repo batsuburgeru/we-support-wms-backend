@@ -1,15 +1,30 @@
+-- Description: SQL script to create the database schema for the NWMS system
+
 CREATE TABLE users (
-    id CHAR(36) PRIMARY KEY,
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('WarehouseMan', 'Supervisor', 'PlantOfficer', 'Guard', 'Admin') NOT NULL,
+    role ENUM('WarehouseMan', 'Supervisor', 'PlantOfficer', 'Guard', 'Admin', 'Client') NOT NULL,
+    acc_status ENUM('Verified', 'Unverified') DEFAULT 'Unverified',
+    img_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE clients (
+    client_id CHAR(36) PRIMARY KEY, 
+    org_name VARCHAR(255) NOT NULL,
+    comp_add VARCHAR(255) NOT NULL,
+    contact_num VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
 CREATE TABLE roles_permissions (
-    id CHAR(36) PRIMARY KEY,
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     role_name VARCHAR(255) UNIQUE NOT NULL,
     permissions JSON NOT NULL
 );
@@ -28,6 +43,7 @@ CREATE TABLE products (
     category_id CHAR(36) NOT NULL,
     stock_quantity INT NOT NULL DEFAULT 0,
     unit_price DECIMAL(10,2) NOT NULL,
+    img_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
@@ -36,7 +52,7 @@ CREATE TABLE products (
 CREATE TABLE purchase_requests (
     id CHAR(36) PRIMARY KEY,
     created_by CHAR(36) NOT NULL,
-    status ENUM('Pending', 'Approved', 'Rejected', 'Processed') DEFAULT 'Pending',
+    status ENUM('Pending', 'Approved', 'Rejected', 'Processed', 'Returned') DEFAULT 'Pending',
     approved_by CHAR(36) NULL,
     sap_sync_status BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +108,7 @@ CREATE TABLE delivery_notes (
     pr_id CHAR(36) NOT NULL,
     verified_by CHAR(36) NULL,
     verified_at TIMESTAMP NULL,
+    note TEXT NULL,
     status ENUM('Pending', 'Verified', 'Dispatched') DEFAULT 'Pending',
     FOREIGN KEY (pr_id) REFERENCES purchase_requests(id) ON DELETE CASCADE,
     FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL
@@ -116,63 +133,61 @@ CREATE TABLE sap_sync_logs (
 );
 
 
-/* INSERT VALUES ROLES_PERMISSIONS*/
-INSERT INTO roles_permissions (id, role_name, permissions) VALUES
-(UUID(), 'Admin', JSON_ARRAY(
-  'create_users', 'view_users', 'edit_users', 'delete_users', 
-  'create_categories', 'view_categories', 'edit_categories', 'delete_categories', 
-  'create_products', 'view_products', 'edit_products', 'delete_products', 
-  'create_purchase_requests', 'view_purchase_requests', 'edit_purchase_requests', 'delete_purchase_requests', 
-  'create_stock_transactions', 'view_stock_transactions', 'edit_stock_transactions', 'delete_stock_transactions', 
-  'create_goods_receipts', 'view_goods_receipts', 'edit_goods_receipts', 'delete_goods_receipts', 
-  'create_goods_issue', 'view_goods_issue', 'edit_goods_issue', 'delete_goods_issue', 
-  'create_delivery_notes', 'view_delivery_notes', 'edit_delivery_notes', 'delete_delivery_notes', 
-  'create_notifications', 'view_notifications', 'edit_notifications', 'delete_notifications', 
-  'sync_sap'
+INSERT INTO roles_permissions (role_name, permissions) VALUES
+('Admin', JSON_ARRAY(
+'create_categories', 'view_categories', 'update_categories', 'delete_categories', 
+'create_delivery_notes', 'view_delivery_notes', 'update_delivery_notes', 'delete_delivery_notes', 
+'create_goods_issue', 'view_goods_issue', 'update_goods_issue', 'delete_goods_issue', 
+'create_goods_receipts', 'view_goods_receipts', 'update_goods_receipts', 'delete_goods_receipts', 
+'create_notifications', 'view_notifications', 'update_notifications', 'delete_notifications', 
+'create_pr_items', 'view_pr_items', 'update_pr_items', 'delete_pr_items',
+'create_products', 'view_products', 'update_products', 'delete_products',
+'create_purchase_requests', 'view_purchase_requests', 'update_purchase_requests', 'delete_purchase_requests',
+'create_sap_sync_logs', 'view_sap_sync_logs', 'update_sap_sync_logs', 'delete_sap_sync_logs',
+'create_stock_transactions', 'view_stock_transactions', 'update_stock_transactions', 'delete_stock_transactions',
+'create_users', 'view_users', 'update_users', 'delete_users'
 )),
-(UUID(), 'Supervisor', JSON_ARRAY(
-  "view_products", "view_categories", "view_purchase_requests", 
-  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
-  "view_goods_issue", "view_delivery_notes", "view_notifications"
+('Supervisor', JSON_ARRAY(
+'create_categories', 'view_categories', 'update_categories', 'delete_categories', 
+'create_delivery_notes', 'view_delivery_notes', 'update_delivery_notes', 'delete_delivery_notes', 
+'create_goods_issue', 'view_goods_issue', 'update_goods_issue', 'delete_goods_issue', 
+'create_goods_receipts', 'view_goods_receipts', 'update_goods_receipts', 'delete_goods_receipts', 
+'create_notifications', 'view_notifications', 'update_notifications', 'delete_notifications', 
+'create_pr_items', 'view_pr_items', 'update_pr_items', 'delete_pr_items',
+'create_products', 'view_products', 'update_products', 'delete_products',
+'create_purchase_requests', 'view_purchase_requests', 'update_purchase_requests', 'delete_purchase_requests',
+'create_sap_sync_logs', 'view_sap_sync_logs', 'update_sap_sync_logs', 'delete_sap_sync_logs',
+'create_stock_transactions', 'view_stock_transactions', 'update_stock_transactions', 'delete_stock_transactions',
+'view_users', 'update_users', 'delete_users'
 )),
-(UUID(), 'Guard', JSON_ARRAY(
-  "view_products", "view_categories", "view_purchase_requests", 
-  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
-  "view_goods_issue", "view_delivery_notes", "view_notifications"
+('Guard', JSON_ARRAY(
+'view_delivery_notes', 'view_goods_issue', 'view_goods_receipts', 
+'view_pr_items', 'view_products', 'view_purchase_requests', 
+'update_delivery_notes'
 )),
-(UUID(), 'PlantOfficer', JSON_ARRAY(
-  "view_products", "view_categories", "create_purchase_requests", 
-  "view_purchase_requests", "edit_purchase_requests", "view_pr_items", 
-  "create_stock_transactions", "view_stock_transactions", "view_goods_receipts", 
-  "view_goods_issue", "view_delivery_notes", "view_notifications"
+('PlantOfficer', JSON_ARRAY(
+'view_categories', 'view_delivery_notes', 'view_goods_issue', 'view_goods_receipts', 
+'view_notifications', 'view_pr_items', 'view_products', 'view_purchase_requests', 
+'view_sap_sync_logs', 'view_stock_transactions', 'view_users', 
+'update_purchase_requests', 'update_delivery_notes'
 )),
-(UUID(), 'WarehouseMan', JSON_ARRAY(
-  "view_products", "view_categories", "view_purchase_requests", 
-  "view_pr_items", "view_stock_transactions", "view_goods_receipts", 
-  "view_goods_issue", "view_delivery_notes", "view_notifications"
+('WarehouseMan', JSON_ARRAY(
+'view_categories', 'view_delivery_notes', 'view_goods_issue', 'view_goods_receipts', 
+'view_notifications', 'view_pr_items', 'view_products', 'view_purchase_requests', 
+'view_sap_sync_logs', 'view_stock_transactions', 'view_users'
+)),
+('Client', JSON_ARRAY(
+'view_purchase_requests', 'view_products', 'view_notifications'
 ));
 
-/* ALTER IN USERS*/
-ALTER TABLE users MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN ROLES_PERMISSIONS*/
-ALTER TABLE roles_permissions MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN CATEGORIES*/
-ALTER TABLE categories MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN PRODUCTS*/
-ALTER TABLE products MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN PURCHASE_REQUESTS*/
-ALTER TABLE purchase_requests MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN PR_ITEMS*/
-ALTER TABLE pr_items MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN STOCK_TRANSACTIONS*/
-ALTER TABLE stock_transactions MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN GOODS_RECEIPTS*/
-ALTER TABLE goods_receipts MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN GOODS_ISSUE*/
-ALTER TABLE goods_issue MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN DELIVERY_NOTES*/
-ALTER TABLE delivery_notes MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN NOTIFICATIONS*/
-ALTER TABLE notifications MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
-/* ALTER IN SAP_SYNC_LOGS*/
-ALTER TABLE sap_sync_logs MODIFY id CHAR(36) NOT NULL DEFAULT (UUID());
+INSERT INTO users (name, email, password_hash, role) VALUES ('admin', 'ekresmiswms@gmail.com', '$2a$10$s/HJ6QOVxH0wG6AyRjWegu2h3qcCZr2EtQpe2/K.18Kyhv22B7h6a', 'Admin');
+
+UPDATE users
+SET acc_status = 'Verified'
+WHERE email = 'ekresmiswms@gmail.com';
+
+
+
+
+
+
