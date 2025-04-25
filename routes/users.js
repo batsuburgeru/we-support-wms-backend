@@ -3,10 +3,10 @@ const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
-const uploadImage = require("../middleware/uploadImage"); 
+const uploadImage = require("../middleware/uploadImage");
 const fs = require("fs");
 const path = require("path");
-const { sendEmail } = require("../middleware/email.js"); 
+const { sendEmail } = require("../middleware/email.js");
 const DEFAULT_IMAGE = "/assets/profilePictures/default.jpg";
 
 dotenv.config();
@@ -39,12 +39,10 @@ app.post("/login", async (req, res) => {
 
     // Check if the account is verified
     if (user.acc_status !== "Verified") {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Account not verified. Please verify your email before logging in.",
-        });
+      return res.status(403).json({
+        error:
+          "Account not verified. Please verify your email before logging in.",
+      });
     }
 
     // Compare passwords
@@ -135,7 +133,7 @@ app.post(
         name,
         email,
         password_hash: hashedPassword,
-        role
+        role,
       });
 
       let client = null;
@@ -171,11 +169,10 @@ app.post(
         res
           .status(201)
           .json({ message: "User Created successfully", user, client });
-            await notifyUsersByRole(
-              "Admin",
-              `New Account Registered (#${id}) was submitted and is pending verification.`
-            );
-          
+        await notifyUsersByRole(
+          "Admin",
+          `New Account Registered (#${id}) was submitted and is pending verification.`
+        );
       } else {
         res.status(201).json({ message: "User Created successfully", user });
         await notifyUsersByRole(
@@ -195,7 +192,9 @@ app.get("/verify-email", async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) {
-      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=Missing token`);
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/email-verified?status=error&message=Missing token`
+      );
     }
 
     console.log("Received Token:", token);
@@ -205,8 +204,13 @@ app.get("/verify-email", async (req, res) => {
     try {
       decoded = jwt.verify(token, SECRET_KEY);
     } catch (error) {
-      const msg = error.name === 'TokenExpiredError' ? "Token expired" : "Invalid token";
-      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=${encodeURIComponent(msg)}`);
+      const msg =
+        error.name === "TokenExpiredError" ? "Token expired" : "Invalid token";
+      return res.redirect(
+        `${
+          process.env.FRONTEND_URL
+        }/email-verified?status=error&message=${encodeURIComponent(msg)}`
+      );
     }
 
     // Update user
@@ -215,16 +219,30 @@ app.get("/verify-email", async (req, res) => {
       .update({ acc_status: "Verified" });
 
     if (!updated) {
-      return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=Invalid or expired token`);
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/email-verified?status=error&message=Invalid or expired token`
+      );
     }
 
     await trx.commit();
 
-    return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=success&message=${encodeURIComponent("Email verified successfully")}`);
+    return res.redirect(
+      `${
+        process.env.FRONTEND_URL
+      }/email-verified?status=success&message=${encodeURIComponent(
+        "Email verified successfully"
+      )}`
+    );
   } catch (error) {
     await trx.rollback();
     console.error("Error:", error.message);
-    return res.redirect(`${process.env.FRONTEND_URL}/email-verified?status=error&message=${encodeURIComponent("Something went wrong")}`);
+    return res.redirect(
+      `${
+        process.env.FRONTEND_URL
+      }/email-verified?status=error&message=${encodeURIComponent(
+        "Something went wrong"
+      )}`
+    );
   }
 });
 
@@ -244,9 +262,13 @@ app.post("/resend-verification-email", async (req, res) => {
     }
 
     // Generate a new verification token
-    const verificationToken = jwt.sign({ id: user.id, email: user.email }, SECRET_KEY, {
-      expiresIn: "1h",
-    });
+    const verificationToken = jwt.sign(
+      { id: user.id, email: user.email },
+      SECRET_KEY,
+      {
+        expiresIn: "1h",
+      }
+    );
 
     // Generate the verification link
     const verifyLink = `${process.env.BACKEND_URL}/users/verify-email?token=${verificationToken}`;
@@ -268,7 +290,6 @@ app.post("/resend-verification-email", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 
 app.post("/forgot-password", async (req, res) => {
   const trx = await db.transaction();
@@ -312,18 +333,24 @@ app.put("/reset-password", async (req, res) => {
     const { newPassword } = req.body;
 
     if (!token) {
-      return res.status(400).json({ success: false, message: "Token is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Token is required" });
     }
 
     const decoded = jwt.verify(token, SECRET_KEY);
 
     const user = await trx("users").where("id", decoded.id).first();
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     if (!newPassword || newPassword.trim() === "") {
-      return res.status(400).json({ success: false, message: "New password is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "New password is required" });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -338,7 +365,9 @@ app.put("/reset-password", async (req, res) => {
   } catch (error) {
     await trx.rollback();
     console.error("Error:", error);
-    return res.status(400).json({ success: false, message: "Invalid or expired token" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid or expired token" });
   }
 });
 
@@ -360,9 +389,9 @@ app.get(
           "users.email",
           "users.role",
           "users.img_url",
-          "clients.org_name",     // Client-specific data
-          "clients.comp_add",     // Client-specific data
-          "clients.contact_num"   // Client-specific data
+          "clients.org_name", // Client-specific data
+          "clients.comp_add", // Client-specific data
+          "clients.contact_num" // Client-specific data
         )
         .where("users.id", "like", id)
         .first();
@@ -381,7 +410,6 @@ app.get(
   }
 );
 
-
 // Filter Users using Role
 app.get(
   "/filter-users",
@@ -394,7 +422,12 @@ app.get(
       // Join users with clients table for 'Client' role
       const users = await db("users")
         .leftJoin("clients", "users.id", "clients.client_id") // Left join with clients table
-        .select("users.*", "clients.org_name", "clients.comp_add", "clients.contact_num") // Select user and client data
+        .select(
+          "users.*",
+          "clients.org_name",
+          "clients.comp_add",
+          "clients.contact_num"
+        ) // Select user and client data
         .where("users.role", "like", `%${search}%`);
 
       if (!users || users.length === 0) {
@@ -404,8 +437,8 @@ app.get(
       }
 
       // Organize the response to differentiate client data
-      const usersWithClientData = users.map(user => {
-        if (user.role === 'Client') {
+      const usersWithClientData = users.map((user) => {
+        if (user.role === "Client") {
           return {
             id: user.id,
             name: user.name,
@@ -448,7 +481,12 @@ app.get(
       // Join users with clients table for 'Client' role
       const users = await db("users")
         .leftJoin("clients", "users.id", "clients.client_id") // Left join with clients table
-        .select("users.*", "clients.org_name", "clients.comp_add", "clients.contact_num") // Select user and client data
+        .select(
+          "users.*",
+          "clients.org_name",
+          "clients.comp_add",
+          "clients.contact_num"
+        ) // Select user and client data
         .where("users.id", "like", `%${search}%`);
 
       if (!users || users.length === 0) {
@@ -458,8 +496,8 @@ app.get(
       }
 
       // Organize the response to differentiate client data
-      const usersWithClientData = users.map(user => {
-        if (user.role === 'Client') {
+      const usersWithClientData = users.map((user) => {
+        if (user.role === "Client") {
           return {
             id: user.id,
             name: user.name,
@@ -501,7 +539,14 @@ app.get(
       const users = await db("users")
         .leftJoin("clients", "users.id", "clients.client_id") // Left join on clients table
         .select("users.*", "clients.*") // Select all user fields and client fields
-        .whereIn("users.role", ["Admin", "Client", "WarehouseMan", "Supervisor", "PlantOfficer", "Guard"]); // Ensure we only return relevant roles
+        .whereIn("users.role", [
+          "Admin",
+          "Client",
+          "WarehouseMan",
+          "Supervisor",
+          "PlantOfficer",
+          "Guard",
+        ]); // Ensure we only return relevant roles
 
       if (!users || users.length === 0) {
         return res.status(200).json({
@@ -510,8 +555,8 @@ app.get(
       }
 
       // Organize the response to differentiate client data
-      const usersWithClientData = users.map(user => {
-        if (user.role === 'Client') {
+      const usersWithClientData = users.map((user) => {
+        if (user.role === "Client") {
           return {
             id: user.id,
             name: user.name,
@@ -553,8 +598,8 @@ app.put(
 
     try {
       const { id } = req.params;
-      const { name, email, role, org_name, comp_add, contact_num, password } = req.body;
-      let image  = DEFAULT_IMAGE;
+      const { name, email, role, org_name, comp_add, contact_num, password } =
+        req.body;
 
       const validRoles = [
         "WarehouseMan",
@@ -585,8 +630,11 @@ app.put(
         hashedPassword = await bcrypt.hash(password, 10);
       }
 
+      // Set image to the existing one by default
+      let image = user.img_url || DEFAULT_IMAGE;
       // Handle image upload and deletion
       if (req.file) {
+        // Delete old image if it's not the default
         if (user.img_url && user.img_url !== DEFAULT_IMAGE) {
           const oldImagePath = path.join(__dirname, "public", user.img_url);
           fs.unlink(oldImagePath, (err) => {
@@ -596,8 +644,6 @@ app.put(
           });
         }
         image = `/assets/profilePictures/${req.file.filename}`;
-      } else if (!image || image.trim() === "") {
-        image = user.img_url || DEFAULT_IMAGE;
       }
 
       // Prepare updated data (fall back to current values if missing or empty)
@@ -610,7 +656,9 @@ app.put(
       };
 
       // Update users table
-      const updatedRows = await trx("users").where("id", id).update(updatedData);
+      const updatedRows = await trx("users")
+        .where("id", id)
+        .update(updatedData);
       if (!updatedRows) {
         throw new Error("No matching User found");
       }
@@ -621,12 +669,19 @@ app.put(
       let client = null;
 
       if (updatedData.role === "Client") {
-        const existingClient = await trx("clients").where({ client_id: id }).first();
+        const existingClient = await trx("clients")
+          .where({ client_id: id })
+          .first();
 
         const clientData = {
-          org_name: org_name?.trim() !== "" ? org_name : existingClient?.org_name || "",
-          comp_add: comp_add?.trim() !== "" ? comp_add : existingClient?.comp_add || "",
-          contact_num: contact_num?.trim() !== "" ? contact_num : existingClient?.contact_num || "",
+          org_name:
+            org_name?.trim() !== "" ? org_name : existingClient?.org_name || "",
+          comp_add:
+            comp_add?.trim() !== "" ? comp_add : existingClient?.comp_add || "",
+          contact_num:
+            contact_num?.trim() !== ""
+              ? contact_num
+              : existingClient?.contact_num || "",
         };
 
         if (existingClient) {
@@ -719,7 +774,5 @@ app.delete(
     }
   }
 );
-
-
 
 module.exports = app;
