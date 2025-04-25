@@ -171,8 +171,17 @@ app.post(
         res
           .status(201)
           .json({ message: "User Created successfully", user, client });
+            await notifyUsersByRole(
+              "Admin",
+              `New Account Registered (#${id}) was submitted and is pending verification.`
+            );
+          
       } else {
         res.status(201).json({ message: "User Created successfully", user });
+        await notifyUsersByRole(
+          "Admin",
+          `New Account Registered (#${id}) was submitted and is pending verification.`
+        );
       }
     } catch (error) {
       await trx.rollback(); // Rollback transaction if any error occurs
@@ -350,6 +359,7 @@ app.get(
           "users.name",
           "users.email",
           "users.role",
+          "users.img_url",
           "clients.org_name",     // Client-specific data
           "clients.comp_add",     // Client-specific data
           "clients.contact_num"   // Client-specific data
